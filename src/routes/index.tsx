@@ -334,11 +334,14 @@ function Index() {
   const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
   const [languageId, setLanguageId] = useState<string>(LANGUAGES[0].id);
   const language = LANGUAGES.find((l) => l.id === languageId) ?? LANGUAGES[0];
+  const [themeId, setThemeId] = useState<string>(THEMES[0].id);
+  const theme = THEMES.find((t) => t.id === themeId) ?? THEMES[0];
   const welcomeMsg: Message = { id: "welcome", role: "bot", text: persona.greeting };
   const [messages, setMessages] = useState<Message[]>([welcomeMsg]);
   const [personaOpen, setPersonaOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
