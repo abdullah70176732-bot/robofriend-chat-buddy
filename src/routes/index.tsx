@@ -587,6 +587,12 @@ function Index() {
     setWink(true);
     setTimeout(() => setWink(false), 700);
 
+    // Auto-title new conversations from the first user message
+    if (activeConv.title === "New chat" && trimmed) {
+      const title = trimmed.slice(0, 40);
+      setConversations((cs) => cs.map((c) => (c.id === activeConv.id ? { ...c, title } : c)));
+    }
+
     if (!apiKey) {
       setMessages((m) => [
         ...m,
@@ -649,8 +655,68 @@ function Index() {
     playClick();
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     setMessages([{ id: "welcome", role: "bot", text: persona.greeting }]);
-    try { localStorage.removeItem(MESSAGES_STORAGE); } catch { /* ignore */ }
+    setConversations((cs) =>
+      cs.map((c) => (c.id === activeConv.id ? { ...c, title: "New chat" } : c)),
+    );
     inputRef.current?.focus();
+  };
+
+  const newChat = () => {
+    playClick();
+    const conv: Conversation = {
+      id: crypto.randomUUID(),
+      title: "New chat",
+      messages: [{ id: "welcome", role: "bot", text: persona.greeting }],
+      updatedAt: Date.now(),
+    };
+    setConversations((cs) => [conv, ...cs]);
+    setActiveId(conv.id);
+    setHistoryOpen(false);
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    inputRef.current?.focus();
+  };
+
+  const selectConv = (id: string) => {
+    if (id === activeId) {
+      setHistoryOpen(false);
+      return;
+    }
+    playClick();
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    setActiveId(id);
+    setHistoryOpen(false);
+  };
+
+  const deleteConv = (id: string) => {
+    playClick();
+    setConversations((cs) => {
+      const next = cs.filter((c) => c.id !== id);
+      if (next.length === 0) {
+        const conv: Conversation = {
+          id: crypto.randomUUID(),
+          title: "New chat",
+          messages: [{ id: "welcome", role: "bot", text: persona.greeting }],
+          updatedAt: Date.now(),
+        };
+        setActiveId(conv.id);
+        return [conv];
+      }
+      if (id === activeId) setActiveId(next[0].id);
+      return next;
+    });
+  };
+
+  const startRename = (id: string, currentTitle: string) => {
+    setRenamingId(id);
+    setRenameDraft(currentTitle);
+  };
+
+  const commitRename = () => {
+    if (!renamingId) return;
+    const title = renameDraft.trim() || "Chat";
+    setConversations((cs) => cs.map((c) => (c.id === renamingId ? { ...c, title } : c)));
+    setRenamingId(null);
+    setRenameDraft("");
   };
 
   const selectPersona = (id: string) => {
