@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette, Copy, Check, History, Plus, Pencil, Search } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette, Copy, Check, History, Plus, Pencil, Search, BarChart3, Sliders, Play, Square as StopIcon } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/")({
@@ -126,6 +126,9 @@ const LANG_STORAGE = "nova_language_id";
 const THEME_STORAGE = "nova_theme_id";
 const MESSAGES_STORAGE = "nova_messages_v1";
 const CONVERSATIONS_STORAGE = "nova_conversations_v1";
+const CUSTOM_SYSTEM_STORAGE = "nova_custom_system";
+const TEMPERATURE_STORAGE = "nova_temperature";
+const MAX_TOKENS_STORAGE = "nova_max_tokens";
 
 // --- Markdown-ish renderer: fenced code blocks with copy button ---
 function CodeBlock({ code, lang }: { code: string; lang?: string }) {
@@ -322,6 +325,7 @@ async function callGeminiOnce(
   userText: string,
   systemInstruction: string,
   userImage?: string,
+  generationConfig?: { temperature?: number; maxOutputTokens?: number },
 ): Promise<{ ok: true; text: string } | { ok: false; status: number; message: string }> {
   const contents = [
     ...history.map((m) => ({
@@ -338,6 +342,7 @@ async function callGeminiOnce(
       body: JSON.stringify({
         contents,
         systemInstruction: { parts: [{ text: systemInstruction }] },
+        ...(generationConfig ? { generationConfig } : {}),
       }),
     },
   );
@@ -376,13 +381,14 @@ async function callGemini(
   userText: string,
   systemInstruction: string,
   userImage?: string,
+  generationConfig?: { temperature?: number; maxOutputTokens?: number },
 ): Promise<string> {
   const models = [GEMINI_MODEL, GEMINI_FALLBACK_MODEL];
   let lastMsg = "Something went wrong.";
   for (const model of models) {
     // Retry current model up to 3 times on 503, with exponential backoff.
     for (let attempt = 0; attempt < 3; attempt++) {
-      const result = await callGeminiOnce(model, apiKey, history, userText, systemInstruction, userImage);
+      const result = await callGeminiOnce(model, apiKey, history, userText, systemInstruction, userImage, generationConfig);
       if (result.ok) return result.text;
       lastMsg = result.message;
       // Non-recoverable: auth/bad request — stop immediately.
@@ -444,6 +450,17 @@ function Index() {
   const [showSettings, setShowSettings] = useState(false);
   const [keyDraft, setKeyDraft] = useState("");
   const [showKey, setShowKey] = useState(false);
+  // Advanced AI settings
+  const [customSystem, setCustomSystem] = useState<string>("");
+  const [temperature, setTemperature] = useState<number>(0.9);
+  const [maxTokens, setMaxTokens] = useState<number>(2048);
+  // Session analytics
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [responseTimes, setResponseTimes] = useState<number[]>([]);
+  // Currently-speaking bot message id (for per-message TTS)
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  // Mouse-reactive gradient overlay position
+  const [mouse, setMouse] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -472,6 +489,18 @@ function Index() {
       const savedTheme = localStorage.getItem(THEME_STORAGE);
       if (savedTheme && THEMES.some((t) => t.id === savedTheme)) {
         setThemeId(savedTheme);
+      }
+      const savedSys = localStorage.getItem(CUSTOM_SYSTEM_STORAGE);
+      if (savedSys) setCustomSystem(savedSys);
+      const savedTemp = localStorage.getItem(TEMPERATURE_STORAGE);
+      if (savedTemp) {
+        const n = Number(savedTemp);
+        if (!Number.isNaN(n)) setTemperature(Math.min(2, Math.max(0, n)));
+      }
+      const savedMax = localStorage.getItem(MAX_TOKENS_STORAGE);
+      if (savedMax) {
+        const n = Number(savedMax);
+        if (!Number.isNaN(n)) setMaxTokens(Math.min(8192, Math.max(64, Math.round(n))));
       }
       const savedConvs = localStorage.getItem(CONVERSATIONS_STORAGE);
       if (savedConvs) {
@@ -518,6 +547,16 @@ function Index() {
     } catch { /* ignore */ }
   }, [conversations, activeId, mounted]);
 
+  // Persist advanced AI settings
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      localStorage.setItem(CUSTOM_SYSTEM_STORAGE, customSystem);
+      localStorage.setItem(TEMPERATURE_STORAGE, String(temperature));
+      localStorage.setItem(MAX_TOKENS_STORAGE, String(maxTokens));
+    } catch { /* ignore */ }
+  }, [customSystem, temperature, maxTokens, mounted]);
+
   // Keep the welcome message in sync with the active persona (only when active chat is fresh)
   useEffect(() => {
     setConversations((cs) =>
@@ -531,7 +570,7 @@ function Index() {
     );
   }, [personaId, activeId]);
 
-  const speak = (text: string) => {
+  const speak = (text: string, id?: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
@@ -546,10 +585,24 @@ function Index() {
         voices.find((v) => v.lang?.toLowerCase() === language.bcp47.toLowerCase()) ||
         voices.find((v) => v.lang?.toLowerCase().startsWith(langPrefix));
       if (preferred) u.voice = preferred;
+      u.onend = () => setSpeakingId((cur) => (cur === (id ?? null) ? null : cur));
+      u.onerror = () => setSpeakingId((cur) => (cur === (id ?? null) ? null : cur));
+      setSpeakingId(id ?? null);
       window.speechSynthesis.speak(u);
     } catch {
       /* ignore */
     }
+  };
+
+  const toggleSpeakMessage = (id: string, text: string) => {
+    playClick();
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (speakingId === id) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+    speak(text, id);
   };
 
   useEffect(() => {
@@ -609,11 +662,23 @@ function Index() {
     }
 
     try {
-      const systemInstruction = `${persona.system}\n\nAlways reply in ${language.name} (${language.nativeName}), regardless of the language the user writes in. Keep any code snippets in their original language.`;
-      const reply = await callGemini(apiKey, history, trimmed || "Please describe this image.", systemInstruction, image || undefined);
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "bot", text: reply }]);
+      const extra = customSystem.trim() ? `\n\nAdditional user instructions:\n${customSystem.trim()}` : "";
+      const systemInstruction = `${persona.system}\n\nAlways reply in ${language.name} (${language.nativeName}), regardless of the language the user writes in. Keep any code snippets in their original language.${extra}`;
+      const started = Date.now();
+      const reply = await callGemini(
+        apiKey,
+        history,
+        trimmed || "Please describe this image.",
+        systemInstruction,
+        image || undefined,
+        { temperature, maxOutputTokens: maxTokens },
+      );
+      const elapsed = Date.now() - started;
+      setResponseTimes((r) => [...r, elapsed]);
+      const botId = crypto.randomUUID();
+      setMessages((m) => [...m, { id: botId, role: "bot", text: reply }]);
       playPop();
-      if (voiceOn) speak(reply);
+      if (voiceOn) speak(reply, botId);
     } catch (err: any) {
       const msg = err?.message || "Something went wrong reaching Gemini.";
       const invalid = /API key|rejected/i.test(msg);
@@ -1040,7 +1105,26 @@ function Index() {
   );
 
   return (
-    <div className="flex min-h-screen w-full" style={{ background: "var(--gradient-bg)" }}>
+    <div
+      className="relative flex min-h-screen w-full animate-fade-in"
+      style={{ background: "var(--gradient-bg)" }}
+      onMouseMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMouse({
+          x: ((e.clientX - rect.left) / rect.width) * 100,
+          y: ((e.clientY - rect.top) / rect.height) * 100,
+        });
+      }}
+    >
+      {/* Mouse-reactive gradient overlay */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 transition-[background] duration-300"
+        style={{
+          background: `radial-gradient(600px circle at ${mouse.x}% ${mouse.y}%, color-mix(in oklab, var(--primary) 22%, transparent), transparent 60%)`,
+        }}
+      />
+      <div className="relative z-10 flex min-h-screen w-full">
       {/* Sidebar */}
       <aside
         className="hidden md:flex w-80 flex-col justify-between p-8 text-sidebar-foreground"
@@ -1249,6 +1333,14 @@ function Index() {
               {voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
             </button>
             <button
+              onClick={() => { playClick(); setShowDashboard(true); }}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground transition hover:bg-accent"
+              aria-label="Session analytics"
+              title="Analytics"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </button>
+            <button
               onClick={openSettings}
               className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-border transition hover:bg-accent ${
                 apiKey ? "bg-background text-foreground" : "bg-destructive/10 text-destructive"
@@ -1284,7 +1376,7 @@ function Index() {
             {messages.map((m) => (
               <div
                 key={m.id}
-                className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
+                className={`flex flex-col animate-fade-in ${m.role === "user" ? "items-end" : "items-start"}`}
               >
                 <div className="flex w-full items-start gap-2" style={{ justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
                   {m.role === "bot" && (
@@ -1315,6 +1407,16 @@ function Index() {
                 </div>
                 {m.role === "bot" && m.id !== "welcome" && (
                   <div className="mt-1 ml-11 flex items-center gap-1">
+                    <button
+                      onClick={() => toggleSpeakMessage(m.id, m.text)}
+                      aria-label={speakingId === m.id ? "Stop reading" : "Listen to reply"}
+                      title={speakingId === m.id ? "Stop reading" : "Listen"}
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition hover:bg-accent ${
+                        speakingId === m.id ? "bg-primary text-primary-foreground animate-pulse" : "text-muted-foreground"
+                      }`}
+                    >
+                      {speakingId === m.id ? <StopIcon className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
+                    </button>
                     <button
                       onClick={() => rate(m.id, "up")}
                       aria-label="Good response"
@@ -1355,11 +1457,11 @@ function Index() {
               </div>
             )}
             {typing && (
-              <div className="flex justify-start">
+              <div className="flex justify-start animate-fade-in">
                 <div className="mr-2 mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                   <RobotAvatar size={26} winking={wink} floating={false} />
                 </div>
-                <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-3 shadow-sm">
+                <div className="w-full max-w-[75%] rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-3 shadow-sm">
                   <div className="flex items-center gap-2">
                     <div className="flex gap-1">
                     <span className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]" />
@@ -1367,6 +1469,11 @@ function Index() {
                     <span className="h-2 w-2 animate-bounce rounded-full bg-primary" />
                     </div>
                     <span className="text-xs text-muted-foreground">Nova is thinking…</span>
+                  </div>
+                  <div className="mt-2 space-y-1.5">
+                    <div className="h-2 w-11/12 animate-pulse rounded bg-muted" />
+                    <div className="h-2 w-9/12 animate-pulse rounded bg-muted" />
+                    <div className="h-2 w-7/12 animate-pulse rounded bg-muted" />
                   </div>
                 </div>
               </div>
@@ -1499,13 +1606,71 @@ function Index() {
           </aside>
         </div>
       )}
+      {showDashboard && (() => {
+        const userMsgs = messages.filter((m) => m.role === "user");
+        const botMsgs = messages.filter((m) => m.role === "bot" && m.id !== "welcome");
+        const totalWords = userMsgs.reduce((sum, m) => sum + m.text.trim().split(/\s+/).filter(Boolean).length, 0);
+        const avgMs = responseTimes.length ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) : 0;
+        const fastest = responseTimes.length ? Math.min(...responseTimes) : 0;
+        const slowest = responseTimes.length ? Math.max(...responseTimes) : 0;
+        const stats: { label: string; value: string; hint?: string }[] = [
+          { label: "Total messages", value: String(userMsgs.length + botMsgs.length), hint: `${userMsgs.length} you · ${botMsgs.length} Nova` },
+          { label: "Words sent", value: totalWords.toLocaleString() },
+          { label: "Avg. response time", value: avgMs ? `${(avgMs / 1000).toFixed(2)}s` : "—" },
+          { label: "Fastest reply", value: fastest ? `${(fastest / 1000).toFixed(2)}s` : "—" },
+          { label: "Slowest reply", value: slowest ? `${(slowest / 1000).toFixed(2)}s` : "—" },
+          { label: "Conversations", value: String(conversations.length) },
+        ];
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            onClick={() => setShowDashboard(false)}
+          >
+            <div
+              className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-5 flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <BarChart3 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">Session analytics</h2>
+                    <p className="text-xs text-muted-foreground">Live stats for “{activeConv.title}”.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDashboard(false)}
+                  className="rounded-full p-1 text-muted-foreground hover:bg-accent"
+                  aria-label="Close analytics"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {stats.map((s) => (
+                  <div key={s.label} className="rounded-xl border border-border bg-background p-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{s.label}</div>
+                    <div className="mt-1 text-xl font-bold text-foreground tabular-nums">{s.value}</div>
+                    {s.hint && <div className="mt-0.5 text-[10px] text-muted-foreground">{s.hint}</div>}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 rounded-xl bg-accent/40 p-3 text-[11px] text-muted-foreground">
+                Response times are measured for this session only. Reload the page to reset.
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {showSettings && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setShowSettings(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl"
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between">
@@ -1514,8 +1679,8 @@ function Index() {
                   <KeyRound className="h-4 w-4" />
                 </div>
                 <div>
-                  <h2 className="text-base font-semibold text-foreground">Gemini API Key</h2>
-                  <p className="text-xs text-muted-foreground">Stored only in your browser.</p>
+                  <h2 className="text-base font-semibold text-foreground">AI Settings</h2>
+                  <p className="text-xs text-muted-foreground">All stored only in your browser.</p>
                 </div>
               </div>
               <button
@@ -1553,6 +1718,64 @@ function Index() {
             >
               Get a free key from Google AI Studio <ExternalLink className="h-3 w-3" />
             </a>
+
+            {/* AI behavior controls */}
+            <div className="mt-6 border-t border-border pt-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Sliders className="h-3.5 w-3.5 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">AI behavior</h3>
+              </div>
+              <label className="block text-xs font-medium text-foreground">Custom system instructions</label>
+              <textarea
+                value={customSystem}
+                onChange={(e) => setCustomSystem(e.target.value)}
+                rows={3}
+                placeholder='e.g. "Act as a helpful math tutor who explains steps slowly."'
+                className="mt-1.5 w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Added on top of the selected persona.
+              </p>
+
+              <div className="mt-4">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-medium text-foreground">Temperature (creativity)</label>
+                  <span className="text-xs tabular-nums text-muted-foreground">{temperature.toFixed(2)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  value={temperature}
+                  onChange={(e) => setTemperature(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>Focused</span><span>Balanced</span><span>Wild</span>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-medium text-foreground">Max response tokens</label>
+                  <span className="text-xs tabular-nums text-muted-foreground">{maxTokens}</span>
+                </div>
+                <input
+                  type="range"
+                  min={64}
+                  max={8192}
+                  step={64}
+                  value={maxTokens}
+                  onChange={(e) => setMaxTokens(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>Short</span><span>Medium</span><span>Long</span>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-5 flex items-center justify-between gap-2">
               <button
                 onClick={clearKey}
@@ -1580,6 +1803,7 @@ function Index() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
