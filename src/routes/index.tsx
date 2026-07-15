@@ -450,6 +450,17 @@ function Index() {
   const [showSettings, setShowSettings] = useState(false);
   const [keyDraft, setKeyDraft] = useState("");
   const [showKey, setShowKey] = useState(false);
+  // Advanced AI settings
+  const [customSystem, setCustomSystem] = useState<string>("");
+  const [temperature, setTemperature] = useState<number>(0.9);
+  const [maxTokens, setMaxTokens] = useState<number>(2048);
+  // Session analytics
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [responseTimes, setResponseTimes] = useState<number[]>([]);
+  // Currently-speaking bot message id (for per-message TTS)
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  // Mouse-reactive gradient overlay position
+  const [mouse, setMouse] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
