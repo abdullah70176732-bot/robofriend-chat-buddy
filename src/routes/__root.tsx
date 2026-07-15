@@ -77,14 +77,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "RoboFriend — Your friendly AI chat companion" },
-      { name: "description", content: "Chat with RoboFriend, a warm and playful chatbot ready to answer questions, tell jokes, and say hello." },
-      { name: "author", content: "RoboFriend" },
-      { property: "og:title", content: "RoboFriend — Your friendly AI chat companion" },
-      { property: "og:description", content: "Chat with RoboFriend, a warm and playful chatbot ready to answer questions, tell jokes, and say hello." },
+      { title: "Nova — Your friendly AI chat companion" },
+      { name: "description", content: "Chat with Nova, a warm and playful chatbot ready to answer questions, tell jokes, and say hello." },
+      { name: "author", content: "Nova" },
+      { property: "og:title", content: "Nova — Your friendly AI chat companion" },
+      { property: "og:description", content: "Chat with Nova, a warm and playful chatbot ready to answer questions, tell jokes, and say hello." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@RoboFriend" },
+      { name: "twitter:site", content: "@Nova" },
     ],
     links: [
       {
