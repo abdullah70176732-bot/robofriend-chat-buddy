@@ -623,14 +623,82 @@ function Index() {
       {/* Chat */}
       <main className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-border bg-card/60 px-4 py-3 backdrop-blur-sm md:px-10">
-          <div className="flex items-center gap-2 md:hidden text-primary">
-            <RobotAvatar size={28} winking={wink} floating={false} />
-            <span className="font-semibold text-foreground">Nova</span>
-          </div>
-          <div className="hidden md:block text-sm text-muted-foreground">
-            Chatting with <span className="font-semibold text-foreground">Nova</span>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 md:hidden text-primary">
+              <RobotAvatar size={28} winking={wink} floating={false} />
+              <span className="font-semibold text-foreground">Nova</span>
+            </div>
+            {/* Persona selector */}
+            <div className="relative">
+              <button
+                onClick={() => { playClick(); setPersonaOpen((o) => !o); setExportOpen(false); }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
+                aria-haspopup="listbox"
+                aria-expanded={personaOpen}
+              >
+                <span aria-hidden>{persona.emoji}</span>
+                <span className="hidden sm:inline">{persona.name}</span>
+                <span className="sm:hidden">Persona</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+              </button>
+              {personaOpen && (
+                <div
+                  className="absolute left-0 top-full z-40 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+                  role="listbox"
+                >
+                  {PERSONAS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => selectPersona(p.id)}
+                      className={`flex w-full items-start gap-2 px-3 py-2 text-left text-xs transition hover:bg-accent ${
+                        p.id === personaId ? "bg-accent/60" : ""
+                      }`}
+                      role="option"
+                      aria-selected={p.id === personaId}
+                    >
+                      <span className="text-base leading-none" aria-hidden>{p.emoji}</span>
+                      <span className="flex-1">
+                        <span className="block font-semibold text-foreground">{p.name}</span>
+                        <span className="block text-[11px] text-muted-foreground line-clamp-2">{p.system}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Export */}
+            <div className="relative">
+              <button
+                onClick={() => { playClick(); setExportOpen((o) => !o); setPersonaOpen(false); }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
+                aria-label="Export chat"
+                title="Export chat"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Export</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+              </button>
+              {exportOpen && (
+                <div className="absolute right-0 top-full z-40 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                  <button
+                    onClick={exportPdf}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-foreground transition hover:bg-accent"
+                  >
+                    <FileDown className="h-3.5 w-3.5 text-primary" />
+                    Download as PDF
+                  </button>
+                  <button
+                    onClick={exportTxt}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-foreground transition hover:bg-accent"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-primary" />
+                    Download as Text
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={toggleVoice}
               className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-border transition hover:bg-accent ${
