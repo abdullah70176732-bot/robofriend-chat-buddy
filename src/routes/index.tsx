@@ -652,11 +652,23 @@ function Index() {
     }
 
     try {
-      const systemInstruction = `${persona.system}\n\nAlways reply in ${language.name} (${language.nativeName}), regardless of the language the user writes in. Keep any code snippets in their original language.`;
-      const reply = await callGemini(apiKey, history, trimmed || "Please describe this image.", systemInstruction, image || undefined);
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "bot", text: reply }]);
+      const extra = customSystem.trim() ? `\n\nAdditional user instructions:\n${customSystem.trim()}` : "";
+      const systemInstruction = `${persona.system}\n\nAlways reply in ${language.name} (${language.nativeName}), regardless of the language the user writes in. Keep any code snippets in their original language.${extra}`;
+      const started = Date.now();
+      const reply = await callGemini(
+        apiKey,
+        history,
+        trimmed || "Please describe this image.",
+        systemInstruction,
+        image || undefined,
+        { temperature, maxOutputTokens: maxTokens },
+      );
+      const elapsed = Date.now() - started;
+      setResponseTimes((r) => [...r, elapsed]);
+      const botId = crypto.randomUUID();
+      setMessages((m) => [...m, { id: botId, role: "bot", text: reply }]);
       playPop();
-      if (voiceOn) speak(reply);
+      if (voiceOn) speak(reply, botId);
     } catch (err: any) {
       const msg = err?.message || "Something went wrong reaching Gemini.";
       const invalid = /API key|rejected/i.test(msg);
