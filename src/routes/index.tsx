@@ -253,12 +253,12 @@ async function callGemini(
 }
 
 function Index() {
-  const welcomeMsg: Message = {
-    id: "welcome",
-    role: "bot",
-    text: "Hi! I'm Nova 🤖 — ask me anything, or tap a quick button below to get started!",
-  };
+  const [personaId, setPersonaId] = useState<string>(PERSONAS[0].id);
+  const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
+  const welcomeMsg: Message = { id: "welcome", role: "bot", text: persona.greeting };
   const [messages, setMessages] = useState<Message[]>([welcomeMsg]);
+  const [personaOpen, setPersonaOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [dark, setDark] = useState(false);
@@ -287,8 +287,22 @@ function Index() {
       const saved = localStorage.getItem(API_KEY_STORAGE);
       if (saved) setApiKey(saved);
       else setShowSettings(true);
+      const savedPersona = localStorage.getItem(PERSONA_STORAGE);
+      if (savedPersona && PERSONAS.some((p) => p.id === savedPersona)) {
+        setPersonaId(savedPersona);
+      }
     } catch { /* ignore */ }
   }, []);
+
+  // Keep the welcome message in sync with the active persona (only when chat is fresh)
+  useEffect(() => {
+    setMessages((ms) => {
+      if (ms.length === 1 && ms[0].id === "welcome") {
+        return [{ id: "welcome", role: "bot", text: persona.greeting }];
+      }
+      return ms;
+    });
+  }, [personaId]);
 
   const speak = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -348,7 +362,7 @@ function Index() {
     }
 
     try {
-      const reply = await callGemini(apiKey, history, trimmed);
+      const reply = await callGemini(apiKey, history, trimmed, persona.system);
       setMessages((m) => [...m, { id: crypto.randomUUID(), role: "bot", text: reply }]);
       playPop();
       if (voiceOn) speak(reply);
