@@ -1611,6 +1611,69 @@ function Index() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setShowSettings(false)}
         >
+          {/* dashboard placeholder anchor above */}
+        </div>
+      )}
+      {showDashboard && (() => {
+        const userMsgs = messages.filter((m) => m.role === "user");
+        const botMsgs = messages.filter((m) => m.role === "bot" && m.id !== "welcome");
+        const totalWords = userMsgs.reduce((sum, m) => sum + m.text.trim().split(/\s+/).filter(Boolean).length, 0);
+        const avgMs = responseTimes.length ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) : 0;
+        const fastest = responseTimes.length ? Math.min(...responseTimes) : 0;
+        const slowest = responseTimes.length ? Math.max(...responseTimes) : 0;
+        const stats: { label: string; value: string; hint?: string }[] = [
+          { label: "Total messages", value: String(userMsgs.length + botMsgs.length), hint: `${userMsgs.length} you · ${botMsgs.length} Nova` },
+          { label: "Words sent", value: totalWords.toLocaleString() },
+          { label: "Avg. response time", value: avgMs ? `${(avgMs / 1000).toFixed(2)}s` : "—" },
+          { label: "Fastest reply", value: fastest ? `${(fastest / 1000).toFixed(2)}s` : "—" },
+          { label: "Slowest reply", value: slowest ? `${(slowest / 1000).toFixed(2)}s` : "—" },
+          { label: "Conversations", value: String(conversations.length) },
+        ];
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            onClick={() => setShowDashboard(false)}
+          >
+            <div
+              className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-5 flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <BarChart3 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">Session analytics</h2>
+                    <p className="text-xs text-muted-foreground">Live stats for “{activeConv.title}”.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDashboard(false)}
+                  className="rounded-full p-1 text-muted-foreground hover:bg-accent"
+                  aria-label="Close analytics"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {stats.map((s) => (
+                  <div key={s.label} className="rounded-xl border border-border bg-background p-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{s.label}</div>
+                    <div className="mt-1 text-xl font-bold text-foreground tabular-nums">{s.value}</div>
+                    {s.hint && <div className="mt-0.5 text-[10px] text-muted-foreground">{s.hint}</div>}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 rounded-xl bg-accent/40 p-3 text-[11px] text-muted-foreground">
+                Response times are measured for this session only. Reload the page to reset.
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {false && (
+        <div>
           <div
             className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in"
             onClick={(e) => e.stopPropagation()}
