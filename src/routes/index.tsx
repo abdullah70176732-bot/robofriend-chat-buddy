@@ -490,6 +490,18 @@ function Index() {
       if (savedTheme && THEMES.some((t) => t.id === savedTheme)) {
         setThemeId(savedTheme);
       }
+      const savedSys = localStorage.getItem(CUSTOM_SYSTEM_STORAGE);
+      if (savedSys) setCustomSystem(savedSys);
+      const savedTemp = localStorage.getItem(TEMPERATURE_STORAGE);
+      if (savedTemp) {
+        const n = Number(savedTemp);
+        if (!Number.isNaN(n)) setTemperature(Math.min(2, Math.max(0, n)));
+      }
+      const savedMax = localStorage.getItem(MAX_TOKENS_STORAGE);
+      if (savedMax) {
+        const n = Number(savedMax);
+        if (!Number.isNaN(n)) setMaxTokens(Math.min(8192, Math.max(64, Math.round(n))));
+      }
       const savedConvs = localStorage.getItem(CONVERSATIONS_STORAGE);
       if (savedConvs) {
         const parsed = JSON.parse(savedConvs);
