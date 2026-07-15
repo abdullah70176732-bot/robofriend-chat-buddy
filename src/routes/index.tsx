@@ -736,6 +736,10 @@ function NexusApp() {
                 className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 hover:border-rose-400/40 hover:text-rose-200 transition">
                 <Trash2 className="h-4 w-4" /> Clear
               </button>
+              <button onClick={() => setShowDashboard(true)} title="Analytics dashboard"
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition">
+                <BarChart3 className="h-4 w-4" /> Insights
+              </button>
             </div>
           </header>
 
@@ -750,7 +754,10 @@ function NexusApp() {
                       ? "bg-gradient-to-br from-cyan-500 to-fuchsia-600 text-white shadow-fuchsia-500/20"
                       : "border border-white/10 bg-white/5 text-slate-100 backdrop-blur"
                   }`}>
-                    {m.text}
+                    {m.image && (
+                      <img src={m.image} alt="attached" className="mb-2 max-h-64 rounded-xl border border-white/20 object-cover" />
+                    )}
+                    <div className="whitespace-pre-wrap">{m.text}</div>
                   </div>
                 </div>
               ))}
@@ -783,10 +790,23 @@ function NexusApp() {
 
           {/* Composer */}
           <div className="border-t border-white/10 bg-slate-950/80 px-4 py-4 backdrop-blur-xl md:px-8">
+            {pendingImage && (
+              <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 rounded-xl border border-cyan-400/30 bg-cyan-400/5 p-2">
+                <img src={pendingImage} alt="pending" className="h-14 w-14 rounded-lg object-cover" />
+                <span className="flex-1 text-xs text-cyan-200">Image ready — send a message and Nexus will analyze it.</span>
+                <button onClick={() => setPendingImage(null)} className="text-xs text-slate-400 hover:text-rose-300">Remove</button>
+              </div>
+            )}
             <div className="mx-auto flex max-w-3xl items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-2 shadow-2xl shadow-cyan-500/5">
               <button onClick={toggleMic} title="Voice input"
                 className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition ${listening ? "bg-rose-500/20 text-rose-300 animate-pulse" : "text-slate-300 hover:bg-white/10"}`}>
                 {listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+              </button>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImagePick(f); e.target.value = ""; }} />
+              <button onClick={() => fileRef.current?.click()} title="Attach image"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-slate-300 hover:bg-white/10 transition">
+                <ImagePlus className="h-5 w-5" />
               </button>
               <input
                 value={input}
@@ -795,7 +815,7 @@ function NexusApp() {
                 placeholder="Talk to Nexus..."
                 className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
               />
-              <button onClick={() => send()} disabled={!input.trim()}
+              <button onClick={() => send()} disabled={!input.trim() && !pendingImage}
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/30 transition hover:brightness-110 disabled:opacity-40">
                 <Send className="h-4 w-4" />
               </button>
