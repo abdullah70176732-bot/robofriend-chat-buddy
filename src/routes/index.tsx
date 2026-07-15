@@ -461,6 +461,16 @@ function Index() {
               {voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
             </button>
             <button
+              onClick={openSettings}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-border transition hover:bg-accent ${
+                apiKey ? "bg-background text-foreground" : "bg-destructive/10 text-destructive"
+              }`}
+              aria-label="Gemini API settings"
+              title={apiKey ? "Gemini connected" : "Add Gemini API key"}
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+            <button
               onClick={clearChat}
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
               aria-label="Clear chat"
