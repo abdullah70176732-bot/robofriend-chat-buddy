@@ -1606,14 +1606,6 @@ function Index() {
           </aside>
         </div>
       )}
-      {showSettings && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-          onClick={() => setShowSettings(false)}
-        >
-          {/* dashboard placeholder anchor above */}
-        </div>
-      )}
       {showDashboard && (() => {
         const userMsgs = messages.filter((m) => m.role === "user");
         const botMsgs = messages.filter((m) => m.role === "bot" && m.id !== "welcome");
