@@ -787,6 +787,23 @@ function Index() {
                 )}
               </div>
             ))}
+            {messages.length === 1 && messages[0].id === "welcome" && !typing && (
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {persona.suggestions.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => handleSend(s)}
+                    className="group rounded-2xl border border-border bg-card p-3 text-left text-xs text-foreground shadow-sm transition hover:border-primary/40 hover:bg-accent"
+                  >
+                    <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                      <Sparkles className="h-3 w-3" />
+                      Try asking
+                    </div>
+                    <div className="leading-snug">{s}</div>
+                  </button>
+                ))}
+              </div>
+            )}
             {typing && (
               <div className="flex justify-start">
                 <div className="mr-2 mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
