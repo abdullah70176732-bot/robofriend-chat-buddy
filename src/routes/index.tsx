@@ -117,7 +117,7 @@ const QUICK = [
   { label: "Say Hello", icon: MessageCircle },
 ];
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-3.5-flash";
 const API_KEY_STORAGE = "nova_gemini_api_key";
 
 async function callGemini(
