@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette, Copy, Check } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/")({
@@ -124,6 +124,64 @@ const API_KEY_STORAGE = "nova_gemini_api_key";
 const PERSONA_STORAGE = "nova_persona_id";
 const LANG_STORAGE = "nova_language_id";
 const THEME_STORAGE = "nova_theme_id";
+const MESSAGES_STORAGE = "nova_messages_v1";
+
+// --- Markdown-ish renderer: fenced code blocks with copy button ---
+function CodeBlock({ code, lang }: { code: string; lang?: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* ignore */ }
+  };
+  return (
+    <div className="my-2 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 text-slate-100 shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-700/70 bg-slate-800/60 px-3 py-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+          {lang || "code"}
+        </span>
+        <button
+          type="button"
+          onClick={copy}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-slate-200 transition hover:bg-slate-700"
+          aria-label="Copy code"
+        >
+          {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+          {copied ? "Copied" : "Copy code"}
+        </button>
+      </div>
+      <pre className="overflow-x-auto px-3 py-2.5 text-[12.5px] leading-relaxed"><code className={`language-${lang || "text"} font-mono`}>{code}</code></pre>
+    </div>
+  );
+}
+
+function MessageContent({ text }: { text: string }) {
+  // Split on ```lang\n...\n``` fences
+  const parts: Array<{ type: "text" | "code"; content: string; lang?: string }> = [];
+  const re = /```([a-zA-Z0-9_+-]*)\n?([\s\S]*?)```/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push({ type: "text", content: text.slice(last, m.index) });
+    parts.push({ type: "code", content: m[2].replace(/\n$/, ""), lang: m[1] || undefined });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ type: "text", content: text.slice(last) });
+  if (parts.length === 0) parts.push({ type: "text", content: text });
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.type === "code" ? (
+          <CodeBlock key={i} code={p.content} lang={p.lang} />
+        ) : (
+          <div key={i} className="whitespace-pre-wrap">{p.content}</div>
+        ),
+      )}
+    </>
+  );
+}
 
 type Theme = { id: string; name: string; emoji: string; gradient: string };
 
@@ -384,8 +442,19 @@ function Index() {
       if (savedTheme && THEMES.some((t) => t.id === savedTheme)) {
         setThemeId(savedTheme);
       }
+      const savedMsgs = localStorage.getItem(MESSAGES_STORAGE);
+      if (savedMsgs) {
+        const parsed = JSON.parse(savedMsgs);
+        if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed);
+      }
     } catch { /* ignore */ }
   }, []);
+
+  // Persist chat history whenever it changes (after mount to avoid overwriting on load)
+  useEffect(() => {
+    if (!mounted) return;
+    try { localStorage.setItem(MESSAGES_STORAGE, JSON.stringify(messages)); } catch { /* ignore */ }
+  }, [messages, mounted]);
 
   // Keep the welcome message in sync with the active persona (only when chat is fresh)
   useEffect(() => {
@@ -515,6 +584,7 @@ function Index() {
     playClick();
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     setMessages([{ id: "welcome", role: "bot", text: persona.greeting }]);
+    try { localStorage.removeItem(MESSAGES_STORAGE); } catch { /* ignore */ }
     inputRef.current?.focus();
   };
 
@@ -988,7 +1058,11 @@ function Index() {
                         className="mb-2 max-h-56 w-auto rounded-lg object-cover"
                       />
                     )}
-                    {m.text && <div className="whitespace-pre-wrap">{m.text}</div>}
+                    {m.text && (
+                      m.role === "bot"
+                        ? <MessageContent text={m.text} />
+                        : <div className="whitespace-pre-wrap">{m.text}</div>
+                    )}
                   </div>
                 </div>
                 {m.role === "bot" && m.id !== "welcome" && (
