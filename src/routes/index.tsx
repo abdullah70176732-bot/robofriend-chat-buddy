@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -117,6 +117,63 @@ const QUICK = [
   { label: "Say Hello", icon: MessageCircle },
 ];
 
+const GEMINI_MODEL = "gemini-2.5-flash";
+const API_KEY_STORAGE = "nova_gemini_api_key";
+
+async function callGemini(
+  apiKey: string,
+  history: { role: "user" | "bot"; text: string }[],
+  userText: string,
+): Promise<string> {
+  const contents = [
+    ...history.map((m) => ({
+      role: m.role === "bot" ? "model" : "user",
+      parts: [{ text: m.text }],
+    })),
+    { role: "user", parts: [{ text: userText }] },
+  ];
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: {
+          parts: [{
+            text: "You are Nova, a friendly, cheerful AI companion. Keep answers warm, concise, and helpful. Use light emoji occasionally.",
+          }],
+        },
+      }),
+    },
+  );
+  if (!res.ok) {
+    let msg = `Request failed (${res.status}).`;
+    try {
+      const j = await res.json();
+      const detail = j?.error?.message;
+      if (res.status === 400 && /API key/i.test(detail || "")) {
+        msg = "That API key looks invalid. Please double-check it in Settings.";
+      } else if (res.status === 401 || res.status === 403) {
+        msg = "Your Gemini API key was rejected. Open Settings and add a valid key.";
+      } else if (res.status === 429) {
+        msg = "Gemini rate limit reached. Please wait a moment and try again.";
+      } else if (detail) {
+        msg = detail;
+      }
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.map((p: any) => p?.text)
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  if (!text) throw new Error("Gemini returned an empty response. Try again.");
+  return text;
+}
+
 function Index() {
   const welcomeMsg: Message = {
     id: "welcome",
@@ -132,6 +189,10 @@ function Index() {
   const [voiceOn, setVoiceOn] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState<string>("");
+  const [showSettings, setShowSettings] = useState(false);
+  const [keyDraft, setKeyDraft] = useState("");
+  const [showKey, setShowKey] = useState(false);
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -144,6 +205,11 @@ function Index() {
 
   useEffect(() => {
     setMounted(true);
+    try {
+      const saved = localStorage.getItem(API_KEY_STORAGE);
+      if (saved) setApiKey(saved);
+      else setShowSettings(true);
+    } catch { /* ignore */ }
   }, []);
 
   const speak = (text: string) => {
@@ -177,26 +243,54 @@ function Index() {
     inputRef.current?.focus();
   }, []);
 
-  const send = (text: string) => {
+  const send = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", text: trimmed };
+    const history = messages.filter((m) => m.id !== "welcome").map(({ role, text }) => ({ role, text }));
     setMessages((m) => [...m, userMsg]);
     setInput("");
     setTyping(true);
     setWink(true);
     setTimeout(() => setWink(false), 700);
-    setTimeout(() => {
-      const reply = botReply(trimmed);
+
+    if (!apiKey) {
       setMessages((m) => [
         ...m,
-        { id: crypto.randomUUID(), role: "bot", text: reply },
+        {
+          id: crypto.randomUUID(),
+          role: "bot",
+          text: "I need a Gemini API key to think! 🔑 Click the ⚙️ Settings icon at the top to add yours — you can grab a free key at aistudio.google.com/apikey.",
+        },
       ]);
       setTyping(false);
+      setShowSettings(true);
+      playPop();
+      return;
+    }
+
+    try {
+      const reply = await callGemini(apiKey, history, trimmed);
+      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "bot", text: reply }]);
       playPop();
       if (voiceOn) speak(reply);
+    } catch (err: any) {
+      const msg = err?.message || "Something went wrong reaching Gemini.";
+      const invalid = /API key|rejected/i.test(msg);
+      setMessages((m) => [
+        ...m,
+        {
+          id: crypto.randomUUID(),
+          role: "bot",
+          text: `⚠️ ${msg}${invalid ? " Open ⚙️ Settings to update it." : ""}`,
+        },
+      ]);
+      if (invalid) setShowSettings(true);
+      playPop();
+    } finally {
+      setTyping(false);
       inputRef.current?.focus();
-    }, 1000);
+    }
   };
 
   const clearChat = () => {
@@ -218,6 +312,29 @@ function Index() {
   const handleSend = (text: string) => {
     playClick();
     send(text);
+  };
+
+  const openSettings = () => {
+    playClick();
+    setKeyDraft(apiKey);
+    setShowKey(false);
+    setShowSettings(true);
+  };
+  const saveKey = () => {
+    playClick();
+    const trimmed = keyDraft.trim();
+    setApiKey(trimmed);
+    try {
+      if (trimmed) localStorage.setItem(API_KEY_STORAGE, trimmed);
+      else localStorage.removeItem(API_KEY_STORAGE);
+    } catch { /* ignore */ }
+    setShowSettings(false);
+  };
+  const clearKey = () => {
+    playClick();
+    setKeyDraft("");
+    setApiKey("");
+    try { localStorage.removeItem(API_KEY_STORAGE); } catch { /* ignore */ }
   };
 
   const toggleListening = async () => {
