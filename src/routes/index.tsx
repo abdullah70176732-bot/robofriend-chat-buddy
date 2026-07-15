@@ -123,6 +123,18 @@ const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash";
 const API_KEY_STORAGE = "nova_gemini_api_key";
 const PERSONA_STORAGE = "nova_persona_id";
 const LANG_STORAGE = "nova_language_id";
+const THEME_STORAGE = "nova_theme_id";
+
+type Theme = { id: string; name: string; emoji: string; gradient: string };
+
+const THEMES: Theme[] = [
+  { id: "default", name: "Soft Blue", emoji: "🔵", gradient: "linear-gradient(135deg, #60a5fa, #3b82f6)" },
+  { id: "sunset", name: "Sunset Glow", emoji: "🌅", gradient: "linear-gradient(135deg, #fb923c, #f43f5e)" },
+  { id: "aurora", name: "Aurora", emoji: "🌌", gradient: "linear-gradient(135deg, #34d399, #a78bfa)" },
+  { id: "midnight", name: "Midnight", emoji: "🌙", gradient: "linear-gradient(135deg, #4f46e5, #7c3aed)" },
+  { id: "mint", name: "Mint Frost", emoji: "🌿", gradient: "linear-gradient(135deg, #2dd4bf, #0ea5e9)" },
+  { id: "rose", name: "Rose Garden", emoji: "🌸", gradient: "linear-gradient(135deg, #f472b6, #e11d48)" },
+];
 
 type Language = { id: string; name: string; nativeName: string; flag: string; bcp47: string };
 
