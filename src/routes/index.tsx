@@ -905,7 +905,14 @@ function Index() {
                         : "rounded-bl-sm bg-card text-card-foreground border border-border"
                     }`}
                   >
-                    {m.text}
+                    {m.image && (
+                      <img
+                        src={m.image}
+                        alt="attachment"
+                        className="mb-2 max-h-56 w-auto rounded-lg object-cover"
+                      />
+                    )}
+                    {m.text && <div className="whitespace-pre-wrap">{m.text}</div>}
                   </div>
                 </div>
                 {m.role === "bot" && m.id !== "welcome" && (
@@ -993,10 +1000,29 @@ function Index() {
               className="flex items-center gap-2 rounded-2xl border border-border bg-background p-1.5 shadow-sm focus-within:ring-2 focus-within:ring-ring"
             >
               <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  onPickImage(e.target.files?.[0] ?? null);
+                  if (e.target) e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => { playClick(); fileInputRef.current?.click(); }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background text-foreground transition hover:bg-accent"
+                aria-label="Attach image"
+                title="Attach image"
+              >
+                <ImagePlus className="h-4 w-4" />
+              </button>
+              <input
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Type a message…"
+                placeholder={pendingImage ? "Ask about this image…" : "Type a message…"}
                 className="flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
               />
               {voiceSupported && (
@@ -1015,13 +1041,27 @@ function Index() {
               )}
               <button
                 type="submit"
-                disabled={!input.trim() || typing}
+                disabled={(!input.trim() && !pendingImage) || typing}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground transition hover:opacity-90 disabled:opacity-40"
                 aria-label="Send message"
               >
                 <Send className="h-4 w-4" />
               </button>
             </form>
+            {pendingImage && (
+              <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-background p-2">
+                <img src={pendingImage} alt="preview" className="h-14 w-14 rounded-lg object-cover" />
+                <span className="flex-1 text-xs text-muted-foreground">Image attached — Nova will look at this.</span>
+                <button
+                  type="button"
+                  onClick={() => { playClick(); setPendingImage(null); }}
+                  className="rounded-full p-1 text-muted-foreground hover:bg-accent"
+                  aria-label="Remove attached image"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             {mounted && !voiceSupported && (
               <p className="mt-2 text-center text-[10px] text-muted-foreground">
                 Voice input isn't supported in this browser.
