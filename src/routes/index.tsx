@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/")({
@@ -8,7 +8,7 @@ export const Route = createFileRoute("/")({
 });
 
 type Feedback = "up" | "down" | null;
-type Message = { id: string; role: "user" | "bot"; text: string; feedback?: Feedback };
+type Message = { id: string; role: "user" | "bot"; text: string; feedback?: Feedback; image?: string };
 
 // --- Sound engine (Web Audio, no assets) ---
 let audioCtx: AudioContext | null = null;
@@ -119,6 +119,7 @@ const QUICK = [
 ];
 
 const GEMINI_MODEL = "gemini-3.5-flash";
+const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash";
 const API_KEY_STORAGE = "nova_gemini_api_key";
 const PERSONA_STORAGE = "nova_persona_id";
 const LANG_STORAGE = "nova_language_id";
@@ -217,29 +218,48 @@ const PERSONAS: Persona[] = [
   },
 ];
 
-async function callGemini(
+type ChatTurn = { role: "user" | "bot"; text: string; image?: string };
+
+function dataUrlToInlineData(dataUrl: string): { mimeType: string; data: string } | null {
+  const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!m) return null;
+  return { mimeType: m[1], data: m[2] };
+}
+
+function buildParts(text: string, image?: string): any[] {
+  const parts: any[] = [];
+  if (image) {
+    const inline = dataUrlToInlineData(image);
+    if (inline) parts.push({ inlineData: inline });
+  }
+  if (text) parts.push({ text });
+  if (parts.length === 0) parts.push({ text: "" });
+  return parts;
+}
+
+async function callGeminiOnce(
+  model: string,
   apiKey: string,
-  history: { role: "user" | "bot"; text: string }[],
+  history: ChatTurn[],
   userText: string,
   systemInstruction: string,
-): Promise<string> {
+  userImage?: string,
+): Promise<{ ok: true; text: string } | { ok: false; status: number; message: string }> {
   const contents = [
     ...history.map((m) => ({
       role: m.role === "bot" ? "model" : "user",
-      parts: [{ text: m.text }],
+      parts: buildParts(m.text, m.image),
     })),
-    { role: "user", parts: [{ text: userText }] },
+    { role: "user", parts: buildParts(userText, userImage) },
   ];
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents,
-        systemInstruction: {
-          parts: [{ text: systemInstruction }],
-        },
+        systemInstruction: { parts: [{ text: systemInstruction }] },
       }),
     },
   );
@@ -254,11 +274,13 @@ async function callGemini(
         msg = "Your Gemini API key was rejected. Open Settings and add a valid key.";
       } else if (res.status === 429) {
         msg = "Gemini rate limit reached. Please wait a moment and try again.";
+      } else if (res.status === 503) {
+        msg = "Gemini is overloaded right now.";
       } else if (detail) {
         msg = detail;
       }
     } catch { /* ignore */ }
-    throw new Error(msg);
+    return { ok: false, status: res.status, message: msg };
   }
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts
@@ -266,8 +288,33 @@ async function callGemini(
     .filter(Boolean)
     .join("\n")
     .trim();
-  if (!text) throw new Error("Gemini returned an empty response. Try again.");
-  return text;
+  if (!text) return { ok: false, status: 500, message: "Gemini returned an empty response. Try again." };
+  return { ok: true, text };
+}
+
+async function callGemini(
+  apiKey: string,
+  history: ChatTurn[],
+  userText: string,
+  systemInstruction: string,
+  userImage?: string,
+): Promise<string> {
+  const models = [GEMINI_MODEL, GEMINI_FALLBACK_MODEL];
+  let lastMsg = "Something went wrong.";
+  for (const model of models) {
+    // Retry current model up to 3 times on 503, with exponential backoff.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await callGeminiOnce(model, apiKey, history, userText, systemInstruction, userImage);
+      if (result.ok) return result.text;
+      lastMsg = result.message;
+      // Non-recoverable: auth/bad request — stop immediately.
+      if ([400, 401, 403, 404].includes(result.status)) throw new Error(result.message);
+      if (result.status === 429) throw new Error(result.message);
+      if (result.status !== 503) break; // try next model
+      await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+    }
+  }
+  throw new Error(`${lastMsg} Please try again in a moment.`);
 }
 
 function Index() {
@@ -282,6 +329,7 @@ function Index() {
   const [langOpen, setLangOpen] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [dark, setDark] = useState(false);
   const [wink, setWink] = useState(false);
   const [listening, setListening] = useState(false);
@@ -295,6 +343,7 @@ function Index() {
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const SpeechRecognitionCtor =
     typeof window !== "undefined"
@@ -362,13 +411,17 @@ function Index() {
     inputRef.current?.focus();
   }, []);
 
-  const send = async (text: string) => {
+  const send = async (text: string, imageOverride?: string | null) => {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    const userMsg: Message = { id: crypto.randomUUID(), role: "user", text: trimmed };
-    const history = messages.filter((m) => m.id !== "welcome").map(({ role, text }) => ({ role, text }));
+    const image = imageOverride !== undefined ? imageOverride : pendingImage;
+    if (!trimmed && !image) return;
+    const userMsg: Message = { id: crypto.randomUUID(), role: "user", text: trimmed || (image ? "🖼️ (image)" : ""), image: image || undefined };
+    const history: ChatTurn[] = messages
+      .filter((m) => m.id !== "welcome")
+      .map(({ role, text, image }) => ({ role, text, image }));
     setMessages((m) => [...m, userMsg]);
     setInput("");
+    setPendingImage(null);
     setTyping(true);
     setWink(true);
     setTimeout(() => setWink(false), 700);
@@ -390,7 +443,7 @@ function Index() {
 
     try {
       const systemInstruction = `${persona.system}\n\nAlways reply in ${language.name} (${language.nativeName}), regardless of the language the user writes in. Keep any code snippets in their original language.`;
-      const reply = await callGemini(apiKey, history, trimmed, systemInstruction);
+      const reply = await callGemini(apiKey, history, trimmed || "Please describe this image.", systemInstruction, image || undefined);
       setMessages((m) => [...m, { id: crypto.randomUUID(), role: "bot", text: reply }]);
       playPop();
       if (voiceOn) speak(reply);
@@ -411,6 +464,24 @@ function Index() {
       setTyping(false);
       inputRef.current?.focus();
     }
+  };
+
+  const onPickImage = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setMicError("Please choose an image file.");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setMicError("Image too large — please pick something under 4 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPendingImage(reader.result as string);
+      setMicError(null);
+    };
+    reader.readAsDataURL(file);
   };
 
   const clearChat = () => {
@@ -834,7 +905,14 @@ function Index() {
                         : "rounded-bl-sm bg-card text-card-foreground border border-border"
                     }`}
                   >
-                    {m.text}
+                    {m.image && (
+                      <img
+                        src={m.image}
+                        alt="attachment"
+                        className="mb-2 max-h-56 w-auto rounded-lg object-cover"
+                      />
+                    )}
+                    {m.text && <div className="whitespace-pre-wrap">{m.text}</div>}
                   </div>
                 </div>
                 {m.role === "bot" && m.id !== "welcome" && (
@@ -922,10 +1000,29 @@ function Index() {
               className="flex items-center gap-2 rounded-2xl border border-border bg-background p-1.5 shadow-sm focus-within:ring-2 focus-within:ring-ring"
             >
               <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  onPickImage(e.target.files?.[0] ?? null);
+                  if (e.target) e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => { playClick(); fileInputRef.current?.click(); }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background text-foreground transition hover:bg-accent"
+                aria-label="Attach image"
+                title="Attach image"
+              >
+                <ImagePlus className="h-4 w-4" />
+              </button>
+              <input
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Type a message…"
+                placeholder={pendingImage ? "Ask about this image…" : "Type a message…"}
                 className="flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
               />
               {voiceSupported && (
@@ -944,13 +1041,27 @@ function Index() {
               )}
               <button
                 type="submit"
-                disabled={!input.trim() || typing}
+                disabled={(!input.trim() && !pendingImage) || typing}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground transition hover:opacity-90 disabled:opacity-40"
                 aria-label="Send message"
               >
                 <Send className="h-4 w-4" />
               </button>
             </form>
+            {pendingImage && (
+              <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-background p-2">
+                <img src={pendingImage} alt="preview" className="h-14 w-14 rounded-lg object-cover" />
+                <span className="flex-1 text-xs text-muted-foreground">Image attached — Nova will look at this.</span>
+                <button
+                  type="button"
+                  onClick={() => { playClick(); setPendingImage(null); }}
+                  className="rounded-full p-1 text-muted-foreground hover:bg-accent"
+                  aria-label="Remove attached image"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             {mounted && !voiceSupported && (
               <p className="mt-2 text-center text-[10px] text-muted-foreground">
                 Voice input isn't supported in this browser.
