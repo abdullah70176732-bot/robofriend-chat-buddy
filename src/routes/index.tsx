@@ -1333,6 +1333,14 @@ function Index() {
               {voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
             </button>
             <button
+              onClick={() => { playClick(); setShowDashboard(true); }}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground transition hover:bg-accent"
+              aria-label="Session analytics"
+              title="Analytics"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </button>
+            <button
               onClick={openSettings}
               className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-border transition hover:bg-accent ${
                 apiKey ? "bg-background text-foreground" : "bg-destructive/10 text-destructive"
