@@ -126,6 +126,9 @@ const LANG_STORAGE = "nova_language_id";
 const THEME_STORAGE = "nova_theme_id";
 const MESSAGES_STORAGE = "nova_messages_v1";
 const CONVERSATIONS_STORAGE = "nova_conversations_v1";
+const CUSTOM_SYSTEM_STORAGE = "nova_custom_system";
+const TEMPERATURE_STORAGE = "nova_temperature";
+const MAX_TOKENS_STORAGE = "nova_max_tokens";
 
 // --- Markdown-ish renderer: fenced code blocks with copy button ---
 function CodeBlock({ code, lang }: { code: string; lang?: string }) {
