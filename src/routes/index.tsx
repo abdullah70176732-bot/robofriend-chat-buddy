@@ -1449,11 +1449,11 @@ function Index() {
               </div>
             )}
             {typing && (
-              <div className="flex justify-start">
+              <div className="flex justify-start animate-fade-in">
                 <div className="mr-2 mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                   <RobotAvatar size={26} winking={wink} floating={false} />
                 </div>
-                <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-3 shadow-sm">
+                <div className="w-full max-w-[75%] rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-3 shadow-sm">
                   <div className="flex items-center gap-2">
                     <div className="flex gap-1">
                     <span className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]" />
@@ -1461,6 +1461,11 @@ function Index() {
                     <span className="h-2 w-2 animate-bounce rounded-full bg-primary" />
                     </div>
                     <span className="text-xs text-muted-foreground">Nova is thinking…</span>
+                  </div>
+                  <div className="mt-2 space-y-1.5">
+                    <div className="h-2 w-11/12 animate-pulse rounded bg-muted" />
+                    <div className="h-2 w-9/12 animate-pulse rounded bg-muted" />
+                    <div className="h-2 w-7/12 animate-pulse rounded bg-muted" />
                   </div>
                 </div>
               </div>
