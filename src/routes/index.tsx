@@ -7,7 +7,7 @@ import {
   Palette, Globe, Plus, MessageSquare, Wand2, Gamepad2, Trophy, Award,
 } from "lucide-react";
 
-export const Route = createFileRoute("/")({ component: Robofriend });
+export const Route = createFileRoute("/")({ component: NexusApp });
 
 type Msg = { id: string; role: "user" | "bot"; text: string };
 type Mood = "happy" | "sad" | "bored" | "energetic";
@@ -78,7 +78,7 @@ const ACHIEVEMENTS: Achievement[] = [
   { id: "chatty", label: "Chatterbox", desc: "Send 10 messages", icon: "🗨️" },
   { id: "recharge_5", label: "Power User", desc: "Recharge 5 times", icon: "🔋" },
   { id: "quest_all", label: "Quest Master", desc: "Complete all daily quests", icon: "🏆" },
-  { id: "game_win", label: "Beat Robofriend", desc: "Win a game vs Robofriend", icon: "🎮" },
+  { id: "game_win", label: "Beat Nexus", desc: "Win a game vs Nexus", icon: "🎮" },
   { id: "game_streak", label: "Hot Streak", desc: "Win 3 games in a row", icon: "🔥" },
   { id: "customizer", label: "Style Icon", desc: "Customize your robot", icon: "🎨" },
   { id: "mood_swing", label: "Mood Explorer", desc: "Try every mood", icon: "🎭" },
@@ -184,12 +184,12 @@ function makeSession(): Session {
     title: "New chat",
     createdAt: Date.now(),
     messages: [
-      { id: "m0", role: "bot", text: "Systems online 🤖⚡ I'm Robofriend — your futuristic buddy. Pick a mood, chat, or ask me anything 🚀" },
+      { id: "m0", role: "bot", text: "Systems online 🤖⚡ I'm Nexus — your futuristic buddy. Pick a mood, chat, or ask me anything 🚀" },
     ],
   };
 }
 
-function Robofriend() {
+function NexusApp() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [hydrated, setHydrated] = useState(false);
@@ -410,7 +410,7 @@ function Robofriend() {
       setStats((s) => ({ ...s, wins: s.wins + 1, streak: s.streak + 1 }));
     } else {
       setRpsScore((s) => ({ ...s, bot: s.bot + 1 }));
-      setRpsMsg("Robofriend wins! 🤖⚡");
+      setRpsMsg("Nexus wins! 🤖⚡");
       setStats((s) => ({ ...s, streak: 0 }));
     }
   }
@@ -471,7 +471,7 @@ function Robofriend() {
               <div className="flex items-center gap-3">
                 <RoboAvatar talking={typing} custom={custom} />
                 <div>
-                  <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">Robofriend</h1>
+                  <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">Nexus</h1>
                   <p className="text-xs text-slate-400">Neon companion v2050</p>
                 </div>
               </div>
@@ -661,7 +661,7 @@ function Robofriend() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-                placeholder="Talk to Robofriend..."
+                placeholder="Talk to Nexus..."
                 className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
               />
               <button onClick={() => send()} disabled={!input.trim()}
@@ -670,7 +670,7 @@ function Robofriend() {
               </button>
             </div>
             <p className="mx-auto mt-2 max-w-3xl text-center text-[10px] text-slate-500">
-              <Rocket className="mr-1 inline h-3 w-3" /> Robofriend is a playful companion — not a doctor, therapist, or oracle.
+              <Rocket className="mr-1 inline h-3 w-3" /> Nexus is a playful companion — not a doctor, therapist, or oracle.
             </p>
           </div>
         </main>
@@ -685,7 +685,7 @@ function Robofriend() {
             {panel === "avatar" && (
               <div>
                 <h2 className="mb-1 text-xl font-bold bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">Robot Customizer</h2>
-                <p className="mb-4 text-xs text-slate-400">Design your Robofriend — style updates live.</p>
+                <p className="mb-4 text-xs text-slate-400">Design your Nexus — style updates live.</p>
                 <div className="mb-4 grid place-items-center rounded-2xl border border-white/10 bg-slate-950/60 p-6">
                   <RoboSVG c={custom} size={140} />
                 </div>
@@ -727,7 +727,7 @@ function Robofriend() {
             {panel === "game" && (
               <div>
                 <h2 className="mb-1 text-xl font-bold bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">Rock · Paper · Scissors</h2>
-                <p className="mb-4 text-xs text-slate-400">Face off against Robofriend!</p>
+                <p className="mb-4 text-xs text-slate-400">Face off against Nexus!</p>
                 <div className="mb-4 grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
                     <div className="text-xs text-slate-400">You</div>
@@ -735,7 +735,7 @@ function Robofriend() {
                     <div className="text-2xl font-bold text-cyan-300">{rpsScore.user}</div>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
-                    <div className="text-xs text-slate-400">Robofriend</div>
+                    <div className="text-xs text-slate-400">Nexus</div>
                     <div className="my-2 text-5xl">{rpsEmoji(rpsBot)}</div>
                     <div className="text-2xl font-bold text-fuchsia-300">{rpsScore.bot}</div>
                   </div>

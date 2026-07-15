@@ -20,7 +20,7 @@ export const Route = createFileRoute("/api/chat")({
           }
           const gateway = createLovableAiGatewayProvider(key);
           const model = gateway("google/gemini-2.5-flash");
-          const system = `You are Robofriend, a playful futuristic robot buddy from 2050. You cheer users up, help them plan their day, and chat like a friend. Use robot emojis (🤖, ⚡, 🚀) naturally but not excessively. Keep replies concise (1-3 short paragraphs). Reply in this language: ${language || "English"}.`;
+          const system = `You are Nexus, a playful futuristic robot buddy from 2050. You cheer users up, help them plan their day, and chat like a friend. Use robot emojis (🤖, ⚡, 🚀) naturally but not excessively. Keep replies concise (1-3 short paragraphs). Reply in this language: ${language || "English"}.`;
           const result = await generateText({
             model,
             messages: [{ role: "system", content: system }, ...messages],

@@ -1,4 +1,4 @@
-# 🤖 Nova Bot
+# 🤖 Nexus
 
 > A beautiful, AI-powered chatbot built with **React 19**, **TanStack Start**, and **Gemini**.
 
@@ -7,7 +7,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Gemini](https://img.shields.io/badge/Powered%20by-Gemini-4285F4?logo=google&logoColor=white)](https://ai.google.dev)
 
-Nova Bot is a modern, multi-modal AI assistant that runs entirely in your browser. Chat with Google's Gemini models, upload images for vision analysis, generate AI images, listen to replies with text-to-speech, and manage multiple chat sessions — all with a polished, themeable UI.
+Nexus is a modern, multi-modal AI assistant that runs entirely in your browser. Chat with Google's Gemini models, upload images for vision analysis, generate AI images, listen to replies with text-to-speech, and manage multiple chat sessions — all with a polished, themeable UI.
 
 ---
 
@@ -89,7 +89,7 @@ Then open [http://localhost:8080](http://localhost:8080) in your browser.
 
 ## 🔐 Environment Variables
 
-Nova Bot runs fully in the browser and does **not** require a backend `.env` file. The only required secret is your **Gemini API Key**, which you enter directly inside the app.
+Nexus runs fully in the browser and does **not** require a backend `.env` file. The only required secret is your **Gemini API Key**, which you enter directly inside the app.
 
 ### Getting Your Gemini API Key
 
@@ -98,7 +98,7 @@ Nova Bot runs fully in the browser and does **not** require a backend `.env` fil
 3. Click **Create API key**.
 4. Copy the generated key.
 
-### Configuring the Key in Nova Bot
+### Configuring the Key in Nexus
 
 1. Launch the app and click the **⚙️ Settings** icon in the top-right header.
 2. Paste your Gemini API Key into the **Gemini API Key** field.
@@ -137,12 +137,12 @@ VITE_GEMINI_API_KEY=your_gemini_api_key_here
 ## 📁 Project Structure
 
 ```text
-Nova-Bot/
+Nexus/
 ├── public/                  # Static assets
 ├── src/
 │   ├── routes/
 │   │   ├── __root.tsx       # Root layout, fonts, SEO metadata
-│   │   └── index.tsx        # Main Nova Bot chat application
+│   │   └── index.tsx        # Main Nexus chat application
 │   ├── styles.css           # Tailwind v4 theme + custom animations
 │   └── router.tsx           # TanStack Router configuration
 ├── package.json             # Dependencies & scripts
@@ -155,7 +155,7 @@ Nova-Bot/
 
 ## 🧪 Browser APIs Used
 
-Nova Bot uses modern browser APIs for a native feel:
+Nexus uses modern browser APIs for a native feel:
 
 - **Web Speech API** — Voice input (`SpeechRecognition`) and text-to-speech (`SpeechSynthesis`).
 - **Web Audio API** — Synthetic click and pop sound effects.
@@ -168,7 +168,7 @@ Nova Bot uses modern browser APIs for a native feel:
 
 ## 🤝 Contributing
 
-Contributions are welcome! If you'd like to improve Nova Bot:
+Contributions are welcome! If you'd like to improve Nexus:
 
 1. Fork the repository.
 2. Create a new branch: `git checkout -b feature/my-feature`.
@@ -184,5 +184,5 @@ This project is open source and available under the [MIT License](LICENSE).
 ---
 
 <p align="center">
-  Built with 💙 by the Nova Bot community
+  Built with 💙 by the Nexus community
 </p>
