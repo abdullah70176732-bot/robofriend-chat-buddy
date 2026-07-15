@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette, Copy, Check } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette, Copy, Check, History, Plus, Pencil } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/")({
@@ -125,6 +125,7 @@ const PERSONA_STORAGE = "nova_persona_id";
 const LANG_STORAGE = "nova_language_id";
 const THEME_STORAGE = "nova_theme_id";
 const MESSAGES_STORAGE = "nova_messages_v1";
+const CONVERSATIONS_STORAGE = "nova_conversations_v1";
 
 // --- Markdown-ish renderer: fenced code blocks with copy button ---
 function CodeBlock({ code, lang }: { code: string; lang?: string }) {
@@ -290,6 +291,13 @@ const PERSONAS: Persona[] = [
 
 type ChatTurn = { role: "user" | "bot"; text: string; image?: string };
 
+type Conversation = {
+  id: string;
+  title: string;
+  messages: Message[];
+  updatedAt: number;
+};
+
 function dataUrlToInlineData(dataUrl: string): { mimeType: string; data: string } | null {
   const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
   if (!m) return null;
@@ -395,7 +403,30 @@ function Index() {
   const [themeId, setThemeId] = useState<string>(THEMES[0].id);
   const theme = THEMES.find((t) => t.id === themeId) ?? THEMES[0];
   const welcomeMsg: Message = { id: "welcome", role: "bot", text: persona.greeting };
-  const [messages, setMessages] = useState<Message[]>([welcomeMsg]);
+  const initialConv: Conversation = { id: "default", title: "New chat", messages: [welcomeMsg], updatedAt: Date.now() };
+  const [conversations, setConversations] = useState<Conversation[]>([initialConv]);
+  const [activeId, setActiveId] = useState<string>(initialConv.id);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const activeConv = conversations.find((c) => c.id === activeId) ?? conversations[0];
+  const messages = activeConv.messages;
+  const setMessages: React.Dispatch<React.SetStateAction<Message[]>> = (updater) => {
+    setConversations((cs) =>
+      cs.map((c) =>
+        c.id === activeConv.id
+          ? {
+              ...c,
+              messages:
+                typeof updater === "function"
+                  ? (updater as (m: Message[]) => Message[])(c.messages)
+                  : updater,
+              updatedAt: Date.now(),
+            }
+          : c,
+      ),
+    );
+  };
   const [personaOpen, setPersonaOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
@@ -442,29 +473,63 @@ function Index() {
       if (savedTheme && THEMES.some((t) => t.id === savedTheme)) {
         setThemeId(savedTheme);
       }
-      const savedMsgs = localStorage.getItem(MESSAGES_STORAGE);
-      if (savedMsgs) {
-        const parsed = JSON.parse(savedMsgs);
-        if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed);
+      const savedConvs = localStorage.getItem(CONVERSATIONS_STORAGE);
+      if (savedConvs) {
+        const parsed = JSON.parse(savedConvs);
+        if (parsed && Array.isArray(parsed.conversations) && parsed.conversations.length > 0) {
+          setConversations(parsed.conversations);
+          const nextActive =
+            parsed.activeId && parsed.conversations.some((c: Conversation) => c.id === parsed.activeId)
+              ? parsed.activeId
+              : parsed.conversations[0].id;
+          setActiveId(nextActive);
+        }
+      } else {
+        // Migrate legacy single-chat storage into a first conversation
+        const savedMsgs = localStorage.getItem(MESSAGES_STORAGE);
+        if (savedMsgs) {
+          const parsed = JSON.parse(savedMsgs);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const firstUser = parsed.find((m: Message) => m.role === "user");
+            const title = firstUser?.text ? String(firstUser.text).slice(0, 40) : "Chat";
+            const conv: Conversation = {
+              id: crypto.randomUUID(),
+              title,
+              messages: parsed,
+              updatedAt: Date.now(),
+            };
+            setConversations([conv]);
+            setActiveId(conv.id);
+          }
+          localStorage.removeItem(MESSAGES_STORAGE);
+        }
       }
     } catch { /* ignore */ }
   }, []);
 
-  // Persist chat history whenever it changes (after mount to avoid overwriting on load)
+  // Persist all conversations whenever they change (after mount to avoid overwriting on load)
   useEffect(() => {
     if (!mounted) return;
-    try { localStorage.setItem(MESSAGES_STORAGE, JSON.stringify(messages)); } catch { /* ignore */ }
-  }, [messages, mounted]);
+    try {
+      localStorage.setItem(
+        CONVERSATIONS_STORAGE,
+        JSON.stringify({ conversations, activeId }),
+      );
+    } catch { /* ignore */ }
+  }, [conversations, activeId, mounted]);
 
-  // Keep the welcome message in sync with the active persona (only when chat is fresh)
+  // Keep the welcome message in sync with the active persona (only when active chat is fresh)
   useEffect(() => {
-    setMessages((ms) => {
-      if (ms.length === 1 && ms[0].id === "welcome") {
-        return [{ id: "welcome", role: "bot", text: persona.greeting }];
-      }
-      return ms;
-    });
-  }, [personaId]);
+    setConversations((cs) =>
+      cs.map((c) => {
+        if (c.id !== activeId) return c;
+        if (c.messages.length === 1 && c.messages[0].id === "welcome") {
+          return { ...c, messages: [{ id: "welcome", role: "bot", text: persona.greeting }] };
+        }
+        return c;
+      }),
+    );
+  }, [personaId, activeId]);
 
   const speak = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -521,6 +586,12 @@ function Index() {
     setTyping(true);
     setWink(true);
     setTimeout(() => setWink(false), 700);
+
+    // Auto-title new conversations from the first user message
+    if (activeConv.title === "New chat" && trimmed) {
+      const title = trimmed.slice(0, 40);
+      setConversations((cs) => cs.map((c) => (c.id === activeConv.id ? { ...c, title } : c)));
+    }
 
     if (!apiKey) {
       setMessages((m) => [
@@ -584,8 +655,68 @@ function Index() {
     playClick();
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     setMessages([{ id: "welcome", role: "bot", text: persona.greeting }]);
-    try { localStorage.removeItem(MESSAGES_STORAGE); } catch { /* ignore */ }
+    setConversations((cs) =>
+      cs.map((c) => (c.id === activeConv.id ? { ...c, title: "New chat" } : c)),
+    );
     inputRef.current?.focus();
+  };
+
+  const newChat = () => {
+    playClick();
+    const conv: Conversation = {
+      id: crypto.randomUUID(),
+      title: "New chat",
+      messages: [{ id: "welcome", role: "bot", text: persona.greeting }],
+      updatedAt: Date.now(),
+    };
+    setConversations((cs) => [conv, ...cs]);
+    setActiveId(conv.id);
+    setHistoryOpen(false);
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    inputRef.current?.focus();
+  };
+
+  const selectConv = (id: string) => {
+    if (id === activeId) {
+      setHistoryOpen(false);
+      return;
+    }
+    playClick();
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    setActiveId(id);
+    setHistoryOpen(false);
+  };
+
+  const deleteConv = (id: string) => {
+    playClick();
+    setConversations((cs) => {
+      const next = cs.filter((c) => c.id !== id);
+      if (next.length === 0) {
+        const conv: Conversation = {
+          id: crypto.randomUUID(),
+          title: "New chat",
+          messages: [{ id: "welcome", role: "bot", text: persona.greeting }],
+          updatedAt: Date.now(),
+        };
+        setActiveId(conv.id);
+        return [conv];
+      }
+      if (id === activeId) setActiveId(next[0].id);
+      return next;
+    });
+  };
+
+  const startRename = (id: string, currentTitle: string) => {
+    setRenamingId(id);
+    setRenameDraft(currentTitle);
+  };
+
+  const commitRename = () => {
+    if (!renamingId) return;
+    const title = renameDraft.trim() || "Chat";
+    setConversations((cs) => cs.map((c) => (c.id === renamingId ? { ...c, title } : c)));
+    setRenamingId(null);
+    setRenameDraft("");
   };
 
   const selectPersona = (id: string) => {
@@ -792,6 +923,77 @@ function Index() {
     );
   };
 
+  const sortedConvs = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+  const chatList = (
+    <div className="flex h-full flex-col">
+      <button
+        onClick={newChat}
+        className="mb-3 inline-flex items-center justify-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/25"
+      >
+        <Plus className="h-4 w-4" />
+        New chat
+      </button>
+      <div className="flex-1 space-y-1 overflow-y-auto pr-1">
+        {sortedConvs.map((c) => {
+          const isActive = c.id === activeId;
+          const isRenaming = renamingId === c.id;
+          return (
+            <div
+              key={c.id}
+              className={`group flex items-center gap-1 rounded-xl px-2 py-1.5 text-sm transition ${
+                isActive ? "bg-white/25 text-white" : "text-white/85 hover:bg-white/10"
+              }`}
+            >
+              {isRenaming ? (
+                <input
+                  autoFocus
+                  value={renameDraft}
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename();
+                    if (e.key === "Escape") { setRenamingId(null); setRenameDraft(""); }
+                  }}
+                  className="flex-1 rounded-md bg-white/20 px-2 py-1 text-xs text-white outline-none placeholder:text-white/60"
+                />
+              ) : (
+                <button
+                  onClick={() => selectConv(c.id)}
+                  className="flex-1 truncate text-left text-xs"
+                  title={c.title}
+                >
+                  <MessageCircle className="mr-1.5 inline h-3 w-3 opacity-70" />
+                  {c.title}
+                </button>
+              )}
+              {!isRenaming && (
+                <>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); startRename(c.id, c.title); }}
+                    aria-label="Rename chat"
+                    className="rounded p-1 text-white/60 opacity-0 transition hover:bg-white/15 hover:text-white group-hover:opacity-100"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteConv(c.id); }}
+                    aria-label="Delete chat"
+                    className="rounded p-1 text-white/60 opacity-0 transition hover:bg-white/15 hover:text-white group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {sortedConvs.length === 0 && (
+          <p className="px-2 py-3 text-xs text-white/60">No chats yet.</p>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex min-h-screen w-full" style={{ background: "var(--gradient-bg)" }}>
       {/* Sidebar */}
@@ -813,18 +1015,11 @@ function Index() {
             Your cheerful AI companion — here to chat, share jokes, and answer curious questions
             anytime you need a friendly voice.
           </p>
-          <div className="mt-10 space-y-3">
-            <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-white/70">
-                What I can do
-              </p>
-              <ul className="mt-2 space-y-1.5 text-sm">
-                <li>💬 Have a friendly chat</li>
-                <li>😄 Tell you a joke</li>
-                <li>🧠 Explain AI concepts</li>
-                <li>👋 Cheer up your day</li>
-              </ul>
-            </div>
+          <div className="mt-8">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-white/70">
+              Your chats
+            </p>
+            <div className="flex max-h-[52vh] flex-col">{chatList}</div>
           </div>
         </div>
         <p className="text-xs text-white/60">Made with 💙 for good conversations.</p>
@@ -834,6 +1029,14 @@ function Index() {
       <main className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-border bg-card/60 px-4 py-3 backdrop-blur-sm md:px-10">
           <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => { playClick(); setHistoryOpen(true); }}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground transition hover:bg-accent md:hidden"
+              aria-label="Open chat history"
+              title="Chat history"
+            >
+              <History className="h-4 w-4" />
+            </button>
             <div className="flex items-center gap-2 md:hidden text-primary">
               <RobotAvatar size={28} winking={wink} floating={false} />
               <span className="font-semibold text-foreground">Nova</span>
@@ -1223,6 +1426,34 @@ function Index() {
           </div>
         </div>
       </main>
+      {historyOpen && (
+        <div
+          className="fixed inset-0 z-50 flex md:hidden"
+          onClick={() => setHistoryOpen(false)}
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <aside
+            className="relative flex h-full w-72 max-w-[85vw] flex-col p-5 text-white shadow-2xl"
+            style={{ background: "var(--gradient-sidebar)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold">Your chats</h2>
+                <p className="text-[11px] uppercase tracking-widest text-white/70">History</p>
+              </div>
+              <button
+                onClick={() => setHistoryOpen(false)}
+                className="rounded-full p-1 text-white/80 hover:bg-white/15"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex flex-1 flex-col overflow-hidden">{chatList}</div>
+          </aside>
+        </div>
+      )}
       {showSettings && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
