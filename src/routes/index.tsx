@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -129,6 +129,7 @@ function Index() {
   const [dark, setDark] = useState(false);
   const [wink, setWink] = useState(false);
   const [listening, setListening] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(true);
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -138,6 +139,25 @@ function Index() {
       ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       : null;
   const voiceSupported = !!SpeechRecognitionCtor;
+
+  const speak = (text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1;
+      u.pitch = 1.15;
+      u.volume = 1;
+      const voices = window.speechSynthesis.getVoices();
+      const preferred =
+        voices.find((v) => /female|zira|samantha|google.*english/i.test(v.name)) ||
+        voices.find((v) => v.lang?.toLowerCase().startsWith("en"));
+      if (preferred) u.voice = preferred;
+      window.speechSynthesis.speak(u);
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -161,20 +181,32 @@ function Index() {
     setWink(true);
     setTimeout(() => setWink(false), 700);
     setTimeout(() => {
+      const reply = botReply(trimmed);
       setMessages((m) => [
         ...m,
-        { id: crypto.randomUUID(), role: "bot", text: botReply(trimmed) },
+        { id: crypto.randomUUID(), role: "bot", text: reply },
       ]);
       setTyping(false);
       playPop();
+      if (voiceOn) speak(reply);
       inputRef.current?.focus();
     }, 1000);
   };
 
   const clearChat = () => {
     playClick();
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     setMessages([welcomeMsg]);
     inputRef.current?.focus();
+  };
+
+  const toggleVoice = () => {
+    playClick();
+    setVoiceOn((v) => {
+      const next = !v;
+      if (!next && typeof window !== "undefined") window.speechSynthesis?.cancel();
+      return next;
+    });
   };
 
   const handleSend = (text: string) => {
@@ -260,6 +292,16 @@ function Index() {
             Chatting with <span className="font-semibold text-foreground">RoboFriend</span>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={toggleVoice}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-border transition hover:bg-accent ${
+                voiceOn ? "bg-primary text-primary-foreground" : "bg-background text-foreground"
+              }`}
+              aria-label={voiceOn ? "Mute bot voice" : "Unmute bot voice"}
+              title={voiceOn ? "Voice on" : "Voice off"}
+            >
+              {voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            </button>
             <button
               onClick={clearChat}
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
