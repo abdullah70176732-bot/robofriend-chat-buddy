@@ -85,6 +85,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Nova" },
+      { name: "twitter:title", content: "Nova — Your friendly AI chat companion" },
+      { name: "twitter:description", content: "Chat with Nova, a warm and playful chatbot ready to answer questions, tell jokes, and say hello." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ebdfad94-e910-4785-be55-6b375f1d4e2f/id-preview-cca201cb--d81aa13c-4ac2-4c2f-80eb-73fc28a6a726.lovable.app-1784114400576.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ebdfad94-e910-4785-be55-6b375f1d4e2f/id-preview-cca201cb--d81aa13c-4ac2-4c2f-80eb-73fc28a6a726.lovable.app-1784114400576.png" },
     ],
     links: [
       {
