@@ -771,7 +771,7 @@ function Index() {
             {/* Persona selector */}
             <div className="relative">
               <button
-                onClick={() => { playClick(); setPersonaOpen((o) => !o); setExportOpen(false); }}
+                onClick={() => { playClick(); setPersonaOpen((o) => !o); setExportOpen(false); setLangOpen(false); setThemeOpen(false); }}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
                 aria-haspopup="listbox"
                 aria-expanded={personaOpen}
