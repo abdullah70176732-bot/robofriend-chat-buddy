@@ -442,8 +442,19 @@ function Index() {
       if (savedTheme && THEMES.some((t) => t.id === savedTheme)) {
         setThemeId(savedTheme);
       }
+      const savedMsgs = localStorage.getItem(MESSAGES_STORAGE);
+      if (savedMsgs) {
+        const parsed = JSON.parse(savedMsgs);
+        if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed);
+      }
     } catch { /* ignore */ }
   }, []);
+
+  // Persist chat history whenever it changes (after mount to avoid overwriting on load)
+  useEffect(() => {
+    if (!mounted) return;
+    try { localStorage.setItem(MESSAGES_STORAGE, JSON.stringify(messages)); } catch { /* ignore */ }
+  }, [messages, mounted]);
 
   // Keep the welcome message in sync with the active persona (only when chat is fresh)
   useEffect(() => {
@@ -573,6 +584,7 @@ function Index() {
     playClick();
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     setMessages([{ id: "welcome", role: "bot", text: persona.greeting }]);
+    try { localStorage.removeItem(MESSAGES_STORAGE); } catch { /* ignore */ }
     inputRef.current?.focus();
   };
 
@@ -1046,7 +1058,11 @@ function Index() {
                         className="mb-2 max-h-56 w-auto rounded-lg object-cover"
                       />
                     )}
-                    {m.text && <div className="whitespace-pre-wrap">{m.text}</div>}
+                    {m.text && (
+                      m.role === "bot"
+                        ? <MessageContent text={m.text} />
+                        : <div className="whitespace-pre-wrap">{m.text}</div>
+                    )}
                   </div>
                 </div>
                 {m.role === "bot" && m.id !== "welcome" && (
