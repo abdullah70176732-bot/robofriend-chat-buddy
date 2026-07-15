@@ -1105,7 +1105,26 @@ function Index() {
   );
 
   return (
-    <div className="flex min-h-screen w-full" style={{ background: "var(--gradient-bg)" }}>
+    <div
+      className="relative flex min-h-screen w-full animate-fade-in"
+      style={{ background: "var(--gradient-bg)" }}
+      onMouseMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMouse({
+          x: ((e.clientX - rect.left) / rect.width) * 100,
+          y: ((e.clientY - rect.top) / rect.height) * 100,
+        });
+      }}
+    >
+      {/* Mouse-reactive gradient overlay */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 transition-[background] duration-300"
+        style={{
+          background: `radial-gradient(600px circle at ${mouse.x}% ${mouse.y}%, color-mix(in oklab, var(--primary) 22%, transparent), transparent 60%)`,
+        }}
+      />
+      <div className="relative z-10 flex min-h-screen w-full">
       {/* Sidebar */}
       <aside
         className="hidden md:flex w-80 flex-col justify-between p-8 text-sidebar-foreground"
