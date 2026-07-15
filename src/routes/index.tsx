@@ -103,9 +103,9 @@ function botReply(input: string): string {
   if (/what is ai|about ai|artificial intelligence/.test(text))
     return "AI (Artificial Intelligence) is the ability of machines to learn from data and perform tasks that usually need human thinking — like understanding language, recognizing images, or holding a friendly chat like this one! ✨";
   if (/hello|hi\b|hey|hola/.test(text))
-    return "Hey there! 👋 I'm RoboFriend — so glad you dropped by. What's on your mind today?";
+    return "Hey there! 👋 I'm Nova — so glad you dropped by. What's on your mind today?";
   if (/how are you/.test(text)) return "I'm running at 100% happiness! 😊 How about you?";
-  if (/your name/.test(text)) return "I'm RoboFriend, your always-cheerful chat buddy!";
+  if (/your name/.test(text)) return "I'm Nova, your always-cheerful chat buddy!";
   if (/thank/.test(text)) return "You're very welcome! 💙";
   if (/bye|goodbye/.test(text)) return "Bye for now! Come back anytime. 👋";
   return "That's interesting! Tell me more, or try one of the quick buttons below. 💬";
@@ -121,7 +121,7 @@ function Index() {
   const welcomeMsg: Message = {
     id: "welcome",
     role: "bot",
-    text: "Hi! I'm RoboFriend 🤖 — ask me anything, or tap a quick button below to get started!",
+    text: "Hi! I'm Nova 🤖 — ask me anything, or tap a quick button below to get started!",
   };
   const [messages, setMessages] = useState<Message[]>([welcomeMsg]);
   const [input, setInput] = useState("");
@@ -297,7 +297,7 @@ function Index() {
               <RobotAvatar size={40} winking={wink} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">RoboFriend</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Nova</h1>
               <p className="text-xs uppercase tracking-widest text-white/70">Online</p>
             </div>
           </div>
@@ -327,10 +327,10 @@ function Index() {
         <header className="flex items-center justify-between border-b border-border bg-card/60 px-4 py-3 backdrop-blur-sm md:px-10">
           <div className="flex items-center gap-2 md:hidden text-primary">
             <RobotAvatar size={28} winking={wink} floating={false} />
-            <span className="font-semibold text-foreground">RoboFriend</span>
+            <span className="font-semibold text-foreground">Nova</span>
           </div>
           <div className="hidden md:block text-sm text-muted-foreground">
-            Chatting with <span className="font-semibold text-foreground">RoboFriend</span>
+            Chatting with <span className="font-semibold text-foreground">Nova</span>
           </div>
           <div className="flex items-center gap-2">
             <button
