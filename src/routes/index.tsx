@@ -700,6 +700,45 @@ function Index() {
                 </div>
               )}
             </div>
+          {/* Language selector */}
+          <div className="relative">
+            <button
+              onClick={() => { playClick(); setLangOpen((o) => !o); setPersonaOpen(false); setExportOpen(false); }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
+              aria-haspopup="listbox"
+              aria-expanded={langOpen}
+              title="Reply language"
+            >
+              <Globe className="h-3.5 w-3.5 opacity-70" />
+              <span aria-hidden>{language.flag}</span>
+              <span className="hidden sm:inline">{language.nativeName}</span>
+              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+            </button>
+            {langOpen && (
+              <div
+                className="absolute left-0 top-full z-40 mt-2 max-h-72 w-52 overflow-y-auto rounded-xl border border-border bg-card shadow-xl"
+                role="listbox"
+              >
+                {LANGUAGES.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => selectLanguage(l.id)}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition hover:bg-accent ${
+                      l.id === languageId ? "bg-accent/60" : ""
+                    }`}
+                    role="option"
+                    aria-selected={l.id === languageId}
+                  >
+                    <span className="text-base leading-none" aria-hidden>{l.flag}</span>
+                    <span className="flex-1">
+                      <span className="block font-semibold text-foreground">{l.nativeName}</span>
+                      <span className="block text-[11px] text-muted-foreground">{l.name}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Export */}
