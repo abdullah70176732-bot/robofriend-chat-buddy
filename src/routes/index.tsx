@@ -1368,7 +1368,7 @@ function Index() {
             {messages.map((m) => (
               <div
                 key={m.id}
-                className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
+                className={`flex flex-col animate-fade-in ${m.role === "user" ? "items-end" : "items-start"}`}
               >
                 <div className="flex w-full items-start gap-2" style={{ justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
                   {m.role === "bot" && (
@@ -1399,6 +1399,16 @@ function Index() {
                 </div>
                 {m.role === "bot" && m.id !== "welcome" && (
                   <div className="mt-1 ml-11 flex items-center gap-1">
+                    <button
+                      onClick={() => toggleSpeakMessage(m.id, m.text)}
+                      aria-label={speakingId === m.id ? "Stop reading" : "Listen to reply"}
+                      title={speakingId === m.id ? "Stop reading" : "Listen"}
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition hover:bg-accent ${
+                        speakingId === m.id ? "bg-primary text-primary-foreground animate-pulse" : "text-muted-foreground"
+                      }`}
+                    >
+                      {speakingId === m.id ? <StopIcon className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
+                    </button>
                     <button
                       onClick={() => rate(m.id, "up")}
                       aria-label="Good response"
