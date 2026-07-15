@@ -380,6 +380,10 @@ function Index() {
       if (savedLang && LANGUAGES.some((l) => l.id === savedLang)) {
         setLanguageId(savedLang);
       }
+      const savedTheme = localStorage.getItem(THEME_STORAGE);
+      if (savedTheme && THEMES.some((t) => t.id === savedTheme)) {
+        setThemeId(savedTheme);
+      }
     } catch { /* ignore */ }
   }, []);
 
