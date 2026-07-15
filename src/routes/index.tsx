@@ -942,6 +942,172 @@ function NexusApp() {
           </div>
         </div>
       )}
+
+      {/* Analytics Dashboard */}
+      {showDashboard && (
+        <AnalyticsPanel
+          sessions={sessions}
+          memory={memory}
+          productivity={productivity}
+          onClose={() => setShowDashboard(false)}
+          onClearMemory={clearMemory}
+        />
+      )}
+    </div>
+  );
+}
+
+function AnalyticsPanel({
+  sessions, memory, productivity, onClose, onClearMemory,
+}: {
+  sessions: Session[];
+  memory: Memory;
+  productivity: ProductivityDay[];
+  onClose: () => void;
+  onClearMemory: () => void;
+}) {
+  // Aggregate sentiment for the last 7 days from all user messages.
+  const days: { key: string; label: string; counts: Record<Sentiment, number> }[] = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    days.push({
+      key: d.toISOString().slice(0, 10),
+      label: d.toLocaleDateString(undefined, { weekday: "short" }),
+      counts: { positive: 0, neutral: 0, analytical: 0, negative: 0 },
+    });
+  }
+  const allMsgs = sessions.flatMap((s) => s.messages).filter((m) => m.role === "user" && m.ts);
+  for (const m of allMsgs) {
+    const key = new Date(m.ts!).toISOString().slice(0, 10);
+    const bucket = days.find((d) => d.key === key);
+    if (bucket && m.sentiment) bucket.counts[m.sentiment]++;
+  }
+  const totals = allMsgs.reduce(
+    (acc, m) => { if (m.sentiment) acc[m.sentiment]++; return acc; },
+    { positive: 0, neutral: 0, analytical: 0, negative: 0 } as Record<Sentiment, number>,
+  );
+  const totalAll = Math.max(1, totals.positive + totals.neutral + totals.analytical + totals.negative);
+  const maxDay = Math.max(1, ...days.map((d) => d.counts.positive + d.counts.neutral + d.counts.analytical + d.counts.negative));
+  const todayProd = productivity.find((p) => p.date === todayKey())?.score ?? 0;
+  const avgProd = productivity.length
+    ? Math.round(productivity.slice(-7).reduce((a, b) => a + b.score, 0) / Math.min(7, productivity.length))
+    : 0;
+
+  const colorFor: Record<Sentiment, string> = {
+    positive: "#34d399",
+    neutral: "#94a3b8",
+    analytical: "#22d3ee",
+    negative: "#fb7185",
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl border border-white/10 bg-slate-900/95 p-6 shadow-2xl shadow-cyan-500/10">
+        <button onClick={onClose} className="absolute right-4 top-4 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
+        <h2 className="mb-1 flex items-center gap-2 text-xl font-bold bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">
+          <BarChart3 className="h-5 w-5 text-cyan-300" /> Telemetry Dashboard
+        </h2>
+        <p className="mb-5 text-xs text-slate-400">AI-analyzed sentiment, productivity, and long-term memory.</p>
+
+        {/* Productivity score */}
+        <div className="mb-5 grid grid-cols-2 gap-3">
+          <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4">
+            <div className="text-xs uppercase tracking-widest text-cyan-200/70">Today's productivity</div>
+            <div className="mt-1 text-3xl font-bold text-cyan-200">{todayProd}<span className="text-base text-slate-400">/100</span></div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-400 transition-all" style={{ width: `${todayProd}%` }} />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-400/5 p-4">
+            <div className="text-xs uppercase tracking-widest text-fuchsia-200/70">7-day average</div>
+            <div className="mt-1 text-3xl font-bold text-fuchsia-200">{avgProd}<span className="text-base text-slate-400">/100</span></div>
+            <div className="mt-2 text-xs text-slate-400">Based on completed quests</div>
+          </div>
+        </div>
+
+        {/* Weekly sentiment trend */}
+        <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-200">Weekly mood trend</h3>
+            <div className="flex flex-wrap gap-2 text-[10px] text-slate-400">
+              {(Object.keys(colorFor) as Sentiment[]).map((s) => (
+                <span key={s} className="flex items-center gap-1 capitalize">
+                  <span className="h-2 w-2 rounded-full" style={{ background: colorFor[s] }} /> {s}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="flex h-40 items-end gap-2">
+            {days.map((d) => {
+              const total = d.counts.positive + d.counts.neutral + d.counts.analytical + d.counts.negative;
+              const h = (total / maxDay) * 100;
+              return (
+                <div key={d.key} className="flex flex-1 flex-col items-center gap-1">
+                  <div className="flex w-full flex-1 flex-col-reverse overflow-hidden rounded-md bg-white/5" style={{ height: `${Math.max(6, h)}%`, minHeight: 6 }}>
+                    {(["positive", "analytical", "neutral", "negative"] as Sentiment[]).map((s) =>
+                      d.counts[s] > 0 ? (
+                        <div key={s} style={{ height: `${(d.counts[s] / total) * 100}%`, background: colorFor[s] }} />
+                      ) : null,
+                    )}
+                  </div>
+                  <span className="text-[10px] text-slate-400">{d.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[11px]">
+            {(Object.keys(colorFor) as Sentiment[]).map((s) => (
+              <div key={s} className="rounded-lg bg-white/5 p-2">
+                <div className="text-lg font-bold" style={{ color: colorFor[s] }}>
+                  {Math.round((totals[s] / totalAll) * 100)}%
+                </div>
+                <div className="capitalize text-slate-400">{s}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Memory */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+              <Brain className="h-4 w-4 text-fuchsia-300" /> Long-term memory
+            </h3>
+            <button onClick={onClearMemory} className="text-[11px] text-slate-400 hover:text-rose-300">Clear</button>
+          </div>
+          {memory.preferences.length === 0 && memory.topics.length === 0 ? (
+            <p className="text-xs text-slate-400">No memory stored yet. Nexus will remember your preferences, goals, and topics as you chat.</p>
+          ) : (
+            <div className="space-y-3">
+              {memory.preferences.length > 0 && (
+                <div>
+                  <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-400">Preferences & identity</div>
+                  <ul className="space-y-1 text-xs text-slate-200">
+                    {memory.preferences.slice(-6).map((p, i) => (
+                      <li key={i} className="rounded-lg bg-white/5 px-2 py-1">• {p}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {memory.topics.length > 0 && (
+                <div>
+                  <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-400">Recent topics</div>
+                  <ul className="space-y-1 text-xs text-slate-300">
+                    {memory.topics.slice(-5).reverse().map((t, i) => (
+                      <li key={i} className="flex items-start gap-2 rounded-lg bg-white/5 px-2 py-1">
+                        <span className="h-2 w-2 mt-1.5 shrink-0 rounded-full" style={{ background: colorFor[t.sentiment] }} />
+                        <span className="flex-1">{t.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
