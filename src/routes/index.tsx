@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette, Copy, Check, History, Plus, Pencil } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette, Copy, Check, History, Plus, Pencil, Search } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/")({
@@ -923,7 +923,25 @@ function Index() {
     );
   };
 
+  const [searchQuery, setSearchQuery] = useState("");
   const sortedConvs = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const filteredConvs: { conv: Conversation; snippet: string | null }[] = trimmedQuery
+    ? sortedConvs.reduce<{ conv: Conversation; snippet: string | null }[]>((acc, c) => {
+        const titleHit = c.title.toLowerCase().includes(trimmedQuery);
+        const msgHit = c.messages.find((m) => m.text.toLowerCase().includes(trimmedQuery));
+        if (!titleHit && !msgHit) return acc;
+        let snippet: string | null = null;
+        if (msgHit) {
+          const idx = msgHit.text.toLowerCase().indexOf(trimmedQuery);
+          const start = Math.max(0, idx - 20);
+          const end = Math.min(msgHit.text.length, idx + trimmedQuery.length + 30);
+          snippet = (start > 0 ? "…" : "") + msgHit.text.slice(start, end) + (end < msgHit.text.length ? "…" : "");
+        }
+        acc.push({ conv: c, snippet });
+        return acc;
+      }, [])
+    : sortedConvs.map((c) => ({ conv: c, snippet: null }));
   const chatList = (
     <div className="flex h-full flex-col">
       <button
@@ -933,14 +951,33 @@ function Index() {
         <Plus className="h-4 w-4" />
         New chat
       </button>
+      <div className="relative mb-2">
+        <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/60" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search messages…"
+          className="w-full rounded-xl bg-white/15 py-1.5 pl-7 pr-7 text-xs text-white outline-none placeholder:text-white/60 focus:bg-white/25"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            aria-label="Clear search"
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-white/70 hover:bg-white/15 hover:text-white"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
       <div className="flex-1 space-y-1 overflow-y-auto pr-1">
-        {sortedConvs.map((c) => {
+        {filteredConvs.map(({ conv: c, snippet }) => {
           const isActive = c.id === activeId;
           const isRenaming = renamingId === c.id;
           return (
             <div
               key={c.id}
-              className={`group flex items-center gap-1 rounded-xl px-2 py-1.5 text-sm transition ${
+              className={`group flex items-start gap-1 rounded-xl px-2 py-1.5 text-sm transition ${
                 isActive ? "bg-white/25 text-white" : "text-white/85 hover:bg-white/10"
               }`}
             >
@@ -959,11 +996,16 @@ function Index() {
               ) : (
                 <button
                   onClick={() => selectConv(c.id)}
-                  className="flex-1 truncate text-left text-xs"
+                  className="flex-1 overflow-hidden text-left text-xs"
                   title={c.title}
                 >
-                  <MessageCircle className="mr-1.5 inline h-3 w-3 opacity-70" />
-                  {c.title}
+                  <div className="truncate">
+                    <MessageCircle className="mr-1.5 inline h-3 w-3 opacity-70" />
+                    {c.title}
+                  </div>
+                  {snippet && (
+                    <div className="mt-0.5 truncate pl-4 text-[10px] text-white/60">{snippet}</div>
+                  )}
                 </button>
               )}
               {!isRenaming && (
@@ -987,7 +1029,10 @@ function Index() {
             </div>
           );
         })}
-        {sortedConvs.length === 0 && (
+        {filteredConvs.length === 0 && trimmedQuery && (
+          <p className="px-2 py-3 text-xs text-white/60">No matches for “{searchQuery}”.</p>
+        )}
+        {sortedConvs.length === 0 && !trimmedQuery && (
           <p className="px-2 py-3 text-xs text-white/60">No chats yet.</p>
         )}
       </div>
