@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/")({
@@ -123,6 +123,18 @@ const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash";
 const API_KEY_STORAGE = "nova_gemini_api_key";
 const PERSONA_STORAGE = "nova_persona_id";
 const LANG_STORAGE = "nova_language_id";
+const THEME_STORAGE = "nova_theme_id";
+
+type Theme = { id: string; name: string; emoji: string; gradient: string };
+
+const THEMES: Theme[] = [
+  { id: "default", name: "Soft Blue", emoji: "🔵", gradient: "linear-gradient(135deg, #60a5fa, #3b82f6)" },
+  { id: "sunset", name: "Sunset Glow", emoji: "🌅", gradient: "linear-gradient(135deg, #fb923c, #f43f5e)" },
+  { id: "aurora", name: "Aurora", emoji: "🌌", gradient: "linear-gradient(135deg, #34d399, #a78bfa)" },
+  { id: "midnight", name: "Midnight", emoji: "🌙", gradient: "linear-gradient(135deg, #4f46e5, #7c3aed)" },
+  { id: "mint", name: "Mint Frost", emoji: "🌿", gradient: "linear-gradient(135deg, #2dd4bf, #0ea5e9)" },
+  { id: "rose", name: "Rose Garden", emoji: "🌸", gradient: "linear-gradient(135deg, #f472b6, #e11d48)" },
+];
 
 type Language = { id: string; name: string; nativeName: string; flag: string; bcp47: string };
 
@@ -322,11 +334,14 @@ function Index() {
   const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
   const [languageId, setLanguageId] = useState<string>(LANGUAGES[0].id);
   const language = LANGUAGES.find((l) => l.id === languageId) ?? LANGUAGES[0];
+  const [themeId, setThemeId] = useState<string>(THEMES[0].id);
+  const theme = THEMES.find((t) => t.id === themeId) ?? THEMES[0];
   const welcomeMsg: Message = { id: "welcome", role: "bot", text: persona.greeting };
   const [messages, setMessages] = useState<Message[]>([welcomeMsg]);
   const [personaOpen, setPersonaOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
@@ -365,6 +380,10 @@ function Index() {
       if (savedLang && LANGUAGES.some((l) => l.id === savedLang)) {
         setLanguageId(savedLang);
       }
+      const savedTheme = localStorage.getItem(THEME_STORAGE);
+      if (savedTheme && THEMES.some((t) => t.id === savedTheme)) {
+        setThemeId(savedTheme);
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -402,6 +421,14 @@ function Index() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
+
+  useEffect(() => {
+    if (themeId === "default") {
+      document.documentElement.removeAttribute("data-theme");
+    } else {
+      document.documentElement.setAttribute("data-theme", themeId);
+    }
+  }, [themeId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -503,6 +530,13 @@ function Index() {
     setLanguageId(id);
     setLangOpen(false);
     try { localStorage.setItem(LANG_STORAGE, id); } catch { /* ignore */ }
+  };
+
+  const selectTheme = (id: string) => {
+    playClick();
+    setThemeId(id);
+    setThemeOpen(false);
+    try { localStorage.setItem(THEME_STORAGE, id); } catch { /* ignore */ }
   };
 
   const buildTranscript = () => {
@@ -737,7 +771,7 @@ function Index() {
             {/* Persona selector */}
             <div className="relative">
               <button
-                onClick={() => { playClick(); setPersonaOpen((o) => !o); setExportOpen(false); }}
+                onClick={() => { playClick(); setPersonaOpen((o) => !o); setExportOpen(false); setLangOpen(false); setThemeOpen(false); }}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
                 aria-haspopup="listbox"
                 aria-expanded={personaOpen}
@@ -775,7 +809,7 @@ function Index() {
           {/* Language selector */}
           <div className="relative">
             <button
-              onClick={() => { playClick(); setLangOpen((o) => !o); setPersonaOpen(false); setExportOpen(false); }}
+              onClick={() => { playClick(); setLangOpen((o) => !o); setPersonaOpen(false); setExportOpen(false); setThemeOpen(false); }}
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
               aria-haspopup="listbox"
               aria-expanded={langOpen}
@@ -811,12 +845,54 @@ function Index() {
               </div>
             )}
           </div>
+          {/* Theme selector */}
+          <div className="relative">
+            <button
+              onClick={() => { playClick(); setThemeOpen((o) => !o); setPersonaOpen(false); setExportOpen(false); setLangOpen(false); }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
+              aria-haspopup="listbox"
+              aria-expanded={themeOpen}
+              title="Background theme"
+            >
+              <Palette className="h-3.5 w-3.5 opacity-70" />
+              <span aria-hidden>{theme.emoji}</span>
+              <span className="hidden sm:inline">{theme.name}</span>
+              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+            </button>
+            {themeOpen && (
+              <div
+                className="absolute left-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+                role="listbox"
+              >
+                {THEMES.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => selectTheme(t.id)}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition hover:bg-accent ${
+                      t.id === themeId ? "bg-accent/60" : ""
+                    }`}
+                    role="option"
+                    aria-selected={t.id === themeId}
+                  >
+                    <span
+                      className="h-5 w-5 flex-shrink-0 rounded-full border border-border"
+                      style={{ background: t.gradient }}
+                      aria-hidden
+                    />
+                    <span className="flex-1">
+                      <span className="block font-semibold text-foreground">{t.emoji} {t.name}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Export */}
             <div className="relative">
               <button
-                onClick={() => { playClick(); setExportOpen((o) => !o); setPersonaOpen(false); }}
+                onClick={() => { playClick(); setExportOpen((o) => !o); setPersonaOpen(false); setLangOpen(false); setThemeOpen(false); }}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
                 aria-label="Export chat"
                 title="Export chat"

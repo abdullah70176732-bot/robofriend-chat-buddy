@@ -102,6 +102,33 @@
   --shadow-soft: 0 10px 40px -12px oklch(0.62 0.17 250 / 0.25);
 }
 
+/* Background theme presets — light mode */
+[data-theme="sunset"] {
+  --gradient-sidebar: linear-gradient(160deg, oklch(0.65 0.18 45), oklch(0.55 0.2 25));
+  --gradient-bg: linear-gradient(180deg, oklch(0.97 0.02 55), oklch(0.95 0.03 45));
+  --shadow-soft: 0 10px 40px -12px oklch(0.65 0.18 45 / 0.25);
+}
+[data-theme="aurora"] {
+  --gradient-sidebar: linear-gradient(160deg, oklch(0.55 0.18 160), oklch(0.45 0.2 300));
+  --gradient-bg: linear-gradient(180deg, oklch(0.97 0.02 180), oklch(0.94 0.03 260));
+  --shadow-soft: 0 10px 40px -12px oklch(0.55 0.18 160 / 0.25);
+}
+[data-theme="midnight"] {
+  --gradient-sidebar: linear-gradient(160deg, oklch(0.4 0.16 270), oklch(0.25 0.14 260));
+  --gradient-bg: linear-gradient(180deg, oklch(0.92 0.02 260), oklch(0.88 0.03 265));
+  --shadow-soft: 0 10px 40px -12px oklch(0.4 0.16 270 / 0.25);
+}
+[data-theme="mint"] {
+  --gradient-sidebar: linear-gradient(160deg, oklch(0.7 0.16 170), oklch(0.55 0.18 185));
+  --gradient-bg: linear-gradient(180deg, oklch(0.98 0.015 170), oklch(0.96 0.025 175));
+  --shadow-soft: 0 10px 40px -12px oklch(0.6 0.16 170 / 0.25);
+}
+[data-theme="rose"] {
+  --gradient-sidebar: linear-gradient(160deg, oklch(0.65 0.18 350), oklch(0.5 0.2 355));
+  --gradient-bg: linear-gradient(180deg, oklch(0.98 0.015 350), oklch(0.95 0.025 355));
+  --shadow-soft: 0 10px 40px -12px oklch(0.65 0.18 350 / 0.25);
+}
+
 .dark {
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
@@ -138,6 +165,33 @@
   --gradient-sidebar: linear-gradient(160deg, oklch(0.42 0.14 255), oklch(0.28 0.1 260));
   --gradient-bg: linear-gradient(180deg, oklch(0.18 0.03 260), oklch(0.14 0.03 260));
   --shadow-soft: 0 10px 40px -12px oklch(0 0 0 / 0.5);
+}
+
+/* Background theme presets — dark mode overrides */
+.dark[data-theme="sunset"] {
+  --gradient-sidebar: linear-gradient(160deg, oklch(0.35 0.14 35), oklch(0.22 0.12 25));
+  --gradient-bg: linear-gradient(180deg, oklch(0.18 0.03 45), oklch(0.14 0.03 40));
+  --shadow-soft: 0 10px 40px -12px oklch(0.35 0.14 35 / 0.35);
+}
+.dark[data-theme="aurora"] {
+  --gradient-sidebar: linear-gradient(160deg, oklch(0.3 0.14 160), oklch(0.25 0.14 300));
+  --gradient-bg: linear-gradient(180deg, oklch(0.18 0.03 180), oklch(0.14 0.03 260));
+  --shadow-soft: 0 10px 40px -12px oklch(0.3 0.14 160 / 0.35);
+}
+.dark[data-theme="midnight"] {
+  --gradient-sidebar: linear-gradient(160deg, oklch(0.28 0.12 270), oklch(0.15 0.1 260));
+  --gradient-bg: linear-gradient(180deg, oklch(0.14 0.03 260), oklch(0.1 0.03 265));
+  --shadow-soft: 0 10px 40px -12px oklch(0.28 0.12 270 / 0.35);
+}
+.dark[data-theme="mint"] {
+  --gradient-sidebar: linear-gradient(160deg, oklch(0.32 0.14 170), oklch(0.2 0.12 175));
+  --gradient-bg: linear-gradient(180deg, oklch(0.18 0.03 170), oklch(0.14 0.03 175));
+  --shadow-soft: 0 10px 40px -12px oklch(0.32 0.14 170 / 0.35);
+}
+.dark[data-theme="rose"] {
+  --gradient-sidebar: linear-gradient(160deg, oklch(0.32 0.14 350), oklch(0.2 0.12 355));
+  --gradient-bg: linear-gradient(180deg, oklch(0.18 0.03 350), oklch(0.14 0.03 355));
+  --shadow-soft: 0 10px 40px -12px oklch(0.32 0.14 350 / 0.35);
 }
 
 @layer base {
