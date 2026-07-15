@@ -5,11 +5,13 @@ import {
   Send, Mic, MicOff, Volume2, VolumeX, Trash2, Battery, BatteryCharging,
   Sparkles, Zap, Rocket, Bot, Smile, Frown, Coffee, Flame, CheckCircle2, Circle, Menu, X,
   Palette, Globe, Plus, MessageSquare, Wand2, Gamepad2, Trophy, Award,
+  BarChart3, ImagePlus, Brain,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: NexusApp });
 
-type Msg = { id: string; role: "user" | "bot"; text: string };
+type Msg = { id: string; role: "user" | "bot"; text: string; image?: string; sentiment?: Sentiment; ts?: number };
+type Sentiment = "positive" | "neutral" | "analytical" | "negative";
 type Mood = "happy" | "sad" | "bored" | "energetic";
 type Session = { id: string; title: string; messages: Msg[]; createdAt: number };
 type EyeStyle = "round" | "square" | "star" | "visor";
@@ -48,6 +50,73 @@ const LANG_KEY = "robofriend_lang_v1";
 const CUSTOM_KEY = "robofriend_custom_v1";
 const ACH_KEY = "robofriend_achievements_v1";
 const STATS_KEY = "robofriend_stats_v1";
+const MEMORY_KEY = "nexus_memory_v1";
+const PRODUCTIVITY_KEY = "nexus_productivity_v1";
+
+type MemoryTopic = { text: string; ts: number; sentiment: Sentiment };
+type Memory = { preferences: string[]; topics: MemoryTopic[] };
+type ProductivityDay = { date: string; score: number };
+
+// Simple lexical sentiment classifier — good enough for a weekly trend chart.
+function classifySentiment(text: string): Sentiment {
+  const t = text.toLowerCase();
+  const pos = /\b(love|great|awesome|happy|excited|amazing|good|thanks|thank you|nice|yay|cool|win|success|glad|😊|😄|🎉|❤️|🚀)\b/;
+  const neg = /\b(hate|sad|angry|bad|terrible|awful|frustrat|tired|stress|worried|anxious|stuck|fail|😢|😡|😞)\b/;
+  const ana = /\b(how|why|explain|analyze|compare|calculate|difference|reason|because|therefore|data|logic|algorithm|code|function)\b|\?/;
+  if (pos.test(t) && !neg.test(t)) return "positive";
+  if (neg.test(t)) return "negative";
+  if (ana.test(t)) return "analytical";
+  return "neutral";
+}
+
+// Extract explicit preferences / goals / identity from user text.
+function extractPreferences(text: string): string[] {
+  const out: string[] = [];
+  const patterns: RegExp[] = [
+    /\bmy name is ([^\.\n,!?]{2,40})/i,
+    /\bi(?:'m| am) ([a-z][^\.\n,!?]{1,60})/i,
+    /\bi (?:like|love|enjoy|prefer) ([^\.\n!?]{2,80})/i,
+    /\bi (?:hate|dislike|can't stand) ([^\.\n!?]{2,80})/i,
+    /\bmy (?:goal|dream|plan) (?:is )?(?:to )?([^\.\n!?]{2,100})/i,
+    /\bi (?:want|need|hope) to ([^\.\n!?]{2,100})/i,
+    /\bi (?:work|study) (?:as|at|in) ([^\.\n!?]{2,60})/i,
+    /\bremember (?:that )?([^\.\n!?]{2,120})/i,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m?.[1]) out.push(m[0].trim());
+  }
+  return out;
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Build a compact retrieval block for the model, biased to recent + query-relevant topics.
+function buildMemoryContext(mem: Memory, query: string): string {
+  const parts: string[] = [];
+  if (mem.preferences.length) {
+    parts.push("User preferences / identity:\n" + mem.preferences.slice(-8).map((p) => `- ${p}`).join("\n"));
+  }
+  if (mem.topics.length) {
+    const q = query.toLowerCase();
+    const qWords = q.split(/\W+/).filter((w) => w.length > 3);
+    const scored = mem.topics.map((t) => {
+      const days = Math.max(1, (Date.now() - t.ts) / 86400000);
+      const rel = qWords.filter((w) => t.text.toLowerCase().includes(w)).length;
+      return { t, score: rel * 3 + 1 / days };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const top = scored.slice(0, 6).map(({ t }) => {
+      const ago = Math.round((Date.now() - t.ts) / 86400000);
+      const when = ago <= 0 ? "today" : ago === 1 ? "yesterday" : `${ago} days ago`;
+      return `- (${when}) ${t.text}`;
+    });
+    parts.push("Recent discussion topics:\n" + top.join("\n"));
+  }
+  return parts.join("\n\n");
+}
 
 const BODY_COLORS = [
   { id: "cyan", label: "Cyan", from: "#22d3ee", to: "#d946ef" },
@@ -212,8 +281,13 @@ function NexusApp() {
   const [rpsScore, setRpsScore] = useState({ user: 0, bot: 0 });
   const [rpsMsg, setRpsMsg] = useState<string>("Make your move!");
   const [toast, setToast] = useState<Achievement | null>(null);
+  const [memory, setMemory] = useState<Memory>({ preferences: [], topics: [] });
+  const [productivity, setProductivity] = useState<ProductivityDay[]>([]);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recogRef = useRef<any>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const active = sessions.find((s) => s.id === activeId);
   const messages = active?.messages ?? [];
@@ -238,6 +312,10 @@ function NexusApp() {
       if (savedAch) setUnlocked(JSON.parse(savedAch));
       const savedStats = localStorage.getItem(STATS_KEY);
       if (savedStats) setStats(JSON.parse(savedStats));
+      const savedMem = localStorage.getItem(MEMORY_KEY);
+      if (savedMem) setMemory(JSON.parse(savedMem));
+      const savedProd = localStorage.getItem(PRODUCTIVITY_KEY);
+      if (savedProd) setProductivity(JSON.parse(savedProd));
     } catch {
       const s = makeSession();
       setSessions([s]);
@@ -262,6 +340,19 @@ function NexusApp() {
   useEffect(() => { if (hydrated) localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom)); }, [custom, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem(ACH_KEY, JSON.stringify(unlocked)); }, [unlocked, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }, [stats, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem(MEMORY_KEY, JSON.stringify(memory)); }, [memory, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem(PRODUCTIVITY_KEY, JSON.stringify(productivity)); }, [productivity, hydrated]);
+
+  // Recompute today's productivity score whenever quests change.
+  useEffect(() => {
+    if (!hydrated) return;
+    const score = Math.round((quests.filter(Boolean).length / QUESTS.length) * 100);
+    setProductivity((list) => {
+      const key = todayKey();
+      const rest = list.filter((d) => d.date !== key);
+      return [...rest, { date: key, score }].slice(-30);
+    });
+  }, [quests, hydrated]);
 
   function unlock(id: string) {
     if (unlocked.includes(id)) return;
@@ -337,9 +428,12 @@ function NexusApp() {
 
   async function send(raw?: string) {
     const text = (raw ?? input).trim();
-    if (!text || !active) return;
+    if ((!text && !pendingImage) || !active) return;
     setInput("");
-    const userMsg: Msg = { id: crypto.randomUUID(), role: "user", text };
+    const image = pendingImage;
+    setPendingImage(null);
+    const sentiment = classifySentiment(text || "shared an image");
+    const userMsg: Msg = { id: crypto.randomUUID(), role: "user", text: text || "(shared an image)", image: image || undefined, sentiment, ts: Date.now() };
     const nextMessages = [...active.messages, userMsg];
     const langLabel = LANGUAGES.find((l) => l.code === language)?.label || "English";
     updateActive((s) => ({
@@ -349,14 +443,36 @@ function NexusApp() {
     }));
     setBattery((b) => Math.max(0, b - 3));
     setStats((s) => ({ ...s, msgs: s.msgs + 1 }));
+
+    // RAG: update long-term memory with extracted preferences and this topic.
+    const newPrefs = extractPreferences(text);
+    const topicText = text.slice(0, 140);
+    const updatedMemory: Memory = {
+      preferences: Array.from(new Set([...memory.preferences, ...newPrefs])).slice(-20),
+      topics: [...memory.topics, ...(topicText ? [{ text: topicText, ts: Date.now(), sentiment }] : [])].slice(-60),
+    };
+    setMemory(updatedMemory);
+    const memoryContext = buildMemoryContext(updatedMemory, text);
+
     setTyping(true);
     try {
       const payload = {
         language: langLabel,
-        messages: nextMessages.map((m) => ({
-          role: m.role === "bot" ? "assistant" as const : "user" as const,
-          content: m.text,
-        })),
+        memory: memoryContext,
+        messages: nextMessages.map((m, idx) => {
+          const role = m.role === "bot" ? ("assistant" as const) : ("user" as const);
+          // Attach the image only on the final user turn using multimodal parts.
+          if (idx === nextMessages.length - 1 && m.image) {
+            return {
+              role,
+              content: [
+                { type: "text", text: m.text || "What's in this image?" },
+                { type: "image_url", image_url: { url: m.image } },
+              ],
+            };
+          }
+          return { role, content: m.text };
+        }),
       };
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -365,12 +481,27 @@ function NexusApp() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Request failed");
-      pushBot(data.text || "Beep boop 🤖 (empty reply)");
+      const reply = data.text || "Beep boop 🤖 (empty reply)";
+      const botMsg: Msg = { id: crypto.randomUUID(), role: "bot", text: reply, sentiment: classifySentiment(reply), ts: Date.now() };
+      updateActive((s) => ({ ...s, messages: [...s.messages, botMsg] }));
+      speak(reply);
     } catch (err: any) {
       pushBot(`⚠️ Circuits fizzled: ${err?.message || "unknown error"}. Try again in a moment 🤖`);
     } finally {
       setTyping(false);
     }
+  }
+
+  function handleImagePick(file: File) {
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 5 * 1024 * 1024) { alert("Image too large (max 5MB)."); return; }
+    const reader = new FileReader();
+    reader.onload = () => setPendingImage(String(reader.result));
+    reader.readAsDataURL(file);
+  }
+
+  function clearMemory() {
+    setMemory({ preferences: [], topics: [] });
   }
 
   function pickMood(m: Mood) {
