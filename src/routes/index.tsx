@@ -325,6 +325,7 @@ async function callGeminiOnce(
   userText: string,
   systemInstruction: string,
   userImage?: string,
+  generationConfig?: { temperature?: number; maxOutputTokens?: number },
 ): Promise<{ ok: true; text: string } | { ok: false; status: number; message: string }> {
   const contents = [
     ...history.map((m) => ({
@@ -341,6 +342,7 @@ async function callGeminiOnce(
       body: JSON.stringify({
         contents,
         systemInstruction: { parts: [{ text: systemInstruction }] },
+        ...(generationConfig ? { generationConfig } : {}),
       }),
     },
   );
@@ -379,13 +381,14 @@ async function callGemini(
   userText: string,
   systemInstruction: string,
   userImage?: string,
+  generationConfig?: { temperature?: number; maxOutputTokens?: number },
 ): Promise<string> {
   const models = [GEMINI_MODEL, GEMINI_FALLBACK_MODEL];
   let lastMsg = "Something went wrong.";
   for (const model of models) {
     // Retry current model up to 3 times on 503, with exponential backoff.
     for (let attempt = 0; attempt < 3; attempt++) {
-      const result = await callGeminiOnce(model, apiKey, history, userText, systemInstruction, userImage);
+      const result = await callGeminiOnce(model, apiKey, history, userText, systemInstruction, userImage, generationConfig);
       if (result.ok) return result.text;
       lastMsg = result.message;
       // Non-recoverable: auth/bad request — stop immediately.
