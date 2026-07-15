@@ -1660,6 +1660,64 @@ function Index() {
             >
               Get a free key from Google AI Studio <ExternalLink className="h-3 w-3" />
             </a>
+
+            {/* AI behavior controls */}
+            <div className="mt-6 border-t border-border pt-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Sliders className="h-3.5 w-3.5 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">AI behavior</h3>
+              </div>
+              <label className="block text-xs font-medium text-foreground">Custom system instructions</label>
+              <textarea
+                value={customSystem}
+                onChange={(e) => setCustomSystem(e.target.value)}
+                rows={3}
+                placeholder='e.g. "Act as a helpful math tutor who explains steps slowly."'
+                className="mt-1.5 w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Added on top of the selected persona.
+              </p>
+
+              <div className="mt-4">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-medium text-foreground">Temperature (creativity)</label>
+                  <span className="text-xs tabular-nums text-muted-foreground">{temperature.toFixed(2)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  value={temperature}
+                  onChange={(e) => setTemperature(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>Focused</span><span>Balanced</span><span>Wild</span>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-medium text-foreground">Max response tokens</label>
+                  <span className="text-xs tabular-nums text-muted-foreground">{maxTokens}</span>
+                </div>
+                <input
+                  type="range"
+                  min={64}
+                  max={8192}
+                  step={64}
+                  value={maxTokens}
+                  onChange={(e) => setMaxTokens(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>Short</span><span>Medium</span><span>Long</span>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-5 flex items-center justify-between gap-2">
               <button
                 onClick={clearKey}
