@@ -1015,18 +1015,11 @@ function Index() {
             Your cheerful AI companion — here to chat, share jokes, and answer curious questions
             anytime you need a friendly voice.
           </p>
-          <div className="mt-10 space-y-3">
-            <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-white/70">
-                What I can do
-              </p>
-              <ul className="mt-2 space-y-1.5 text-sm">
-                <li>💬 Have a friendly chat</li>
-                <li>😄 Tell you a joke</li>
-                <li>🧠 Explain AI concepts</li>
-                <li>👋 Cheer up your day</li>
-              </ul>
-            </div>
+          <div className="mt-8">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-white/70">
+              Your chats
+            </p>
+            <div className="max-h-[52vh]">{chatList}</div>
           </div>
         </div>
         <p className="text-xs text-white/60">Made with 💙 for good conversations.</p>
