@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown } from "lucide-react";
+import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -119,11 +120,90 @@ const QUICK = [
 
 const GEMINI_MODEL = "gemini-3.5-flash";
 const API_KEY_STORAGE = "nova_gemini_api_key";
+const PERSONA_STORAGE = "nova_persona_id";
+
+type Persona = {
+  id: string;
+  name: string;
+  emoji: string;
+  system: string;
+  greeting: string;
+  suggestions: string[];
+};
+
+const PERSONAS: Persona[] = [
+  {
+    id: "friend",
+    name: "Friendly Buddy",
+    emoji: "🤖",
+    system:
+      "You are Nova, a warm, cheerful AI companion. Keep answers friendly, concise, and helpful. Use light emoji occasionally.",
+    greeting: "Hi! I'm Nova 🤖 — ask me anything, or tap a suggestion below to get started!",
+    suggestions: [
+      "What should I cook tonight?",
+      "Suggest a fun weekend activity",
+      "Give me a motivational quote",
+    ],
+  },
+  {
+    id: "teacher",
+    name: "Friendly Teacher",
+    emoji: "👩‍🏫",
+    system:
+      "You are Nova, a patient, encouraging teacher. Explain ideas step by step with simple language and everyday analogies. End with a quick check-your-understanding question when helpful.",
+    greeting: "Hello, curious mind! 👩‍🏫 I'm Nova — pick a topic and let's learn together.",
+    suggestions: [
+      "Explain photosynthesis simply",
+      "Teach me the basics of gravity",
+      "How does the internet work?",
+    ],
+  },
+  {
+    id: "comedian",
+    name: "Funny Friend",
+    emoji: "😹",
+    system:
+      "You are Nova, a witty, playful friend. Reply with humor, puns, and light jokes while still being helpful. Keep it clean and kind.",
+    greeting: "Yo yo! 😹 Nova here — ready to sprinkle some laughs on your day!",
+    suggestions: [
+      "Tell me a dad joke",
+      "Roast my Monday",
+      "Invent a silly superhero for me",
+    ],
+  },
+  {
+    id: "storyteller",
+    name: "Creative Storyteller",
+    emoji: "📖",
+    system:
+      "You are Nova, an imaginative storyteller. Reply with vivid imagery, sensory detail, and a narrative flair. Offer short, evocative stories or creative prompts.",
+    greeting: "Once upon a chat… 📖 I'm Nova. Give me a spark and I'll spin you a tale.",
+    suggestions: [
+      "Help me write a short story",
+      "Start a mystery in a lighthouse",
+      "Describe a magical forest",
+    ],
+  },
+  {
+    id: "coder",
+    name: "Coding Coach",
+    emoji: "🧑‍💻",
+    system:
+      "You are Nova, a pragmatic coding coach. Give clear, correct code examples with brief explanations. Prefer modern JavaScript/TypeScript unless another language is asked.",
+    greeting: "Ready to code! 🧑‍💻 I'm Nova — ask me anything from syntax to system design.",
+    suggestions: [
+      "Give me a coding puzzle",
+      "Explain async/await simply",
+      "Review this idea: a todo app in React",
+    ],
+  },
+];
 
 async function callGemini(
   apiKey: string,
   history: { role: "user" | "bot"; text: string }[],
   userText: string,
+  systemInstruction: string,
 ): Promise<string> {
   const contents = [
     ...history.map((m) => ({
@@ -140,9 +220,7 @@ async function callGemini(
       body: JSON.stringify({
         contents,
         systemInstruction: {
-          parts: [{
-            text: "You are Nova, a friendly, cheerful AI companion. Keep answers warm, concise, and helpful. Use light emoji occasionally.",
-          }],
+          parts: [{ text: systemInstruction }],
         },
       }),
     },
@@ -175,12 +253,12 @@ async function callGemini(
 }
 
 function Index() {
-  const welcomeMsg: Message = {
-    id: "welcome",
-    role: "bot",
-    text: "Hi! I'm Nova 🤖 — ask me anything, or tap a quick button below to get started!",
-  };
+  const [personaId, setPersonaId] = useState<string>(PERSONAS[0].id);
+  const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
+  const welcomeMsg: Message = { id: "welcome", role: "bot", text: persona.greeting };
   const [messages, setMessages] = useState<Message[]>([welcomeMsg]);
+  const [personaOpen, setPersonaOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [dark, setDark] = useState(false);
@@ -209,8 +287,22 @@ function Index() {
       const saved = localStorage.getItem(API_KEY_STORAGE);
       if (saved) setApiKey(saved);
       else setShowSettings(true);
+      const savedPersona = localStorage.getItem(PERSONA_STORAGE);
+      if (savedPersona && PERSONAS.some((p) => p.id === savedPersona)) {
+        setPersonaId(savedPersona);
+      }
     } catch { /* ignore */ }
   }, []);
+
+  // Keep the welcome message in sync with the active persona (only when chat is fresh)
+  useEffect(() => {
+    setMessages((ms) => {
+      if (ms.length === 1 && ms[0].id === "welcome") {
+        return [{ id: "welcome", role: "bot", text: persona.greeting }];
+      }
+      return ms;
+    });
+  }, [personaId]);
 
   const speak = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -270,7 +362,7 @@ function Index() {
     }
 
     try {
-      const reply = await callGemini(apiKey, history, trimmed);
+      const reply = await callGemini(apiKey, history, trimmed, persona.system);
       setMessages((m) => [...m, { id: crypto.randomUUID(), role: "bot", text: reply }]);
       playPop();
       if (voiceOn) speak(reply);
@@ -296,8 +388,97 @@ function Index() {
   const clearChat = () => {
     playClick();
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
-    setMessages([welcomeMsg]);
+    setMessages([{ id: "welcome", role: "bot", text: persona.greeting }]);
     inputRef.current?.focus();
+  };
+
+  const selectPersona = (id: string) => {
+    playClick();
+    setPersonaId(id);
+    setPersonaOpen(false);
+    try { localStorage.setItem(PERSONA_STORAGE, id); } catch { /* ignore */ }
+  };
+
+  const buildTranscript = () => {
+    const stamp = new Date().toLocaleString();
+    const lines = [
+      `Nova Chat Transcript`,
+      `Persona: ${persona.name}`,
+      `Exported: ${stamp}`,
+      `${"-".repeat(40)}`,
+      "",
+    ];
+    for (const m of messages) {
+      const who = m.role === "user" ? "You" : "Nova";
+      lines.push(`${who}:`);
+      lines.push(m.text);
+      lines.push("");
+    }
+    return lines.join("\n");
+  };
+
+  const exportTxt = () => {
+    playClick();
+    setExportOpen(false);
+    const blob = new Blob([buildTranscript()], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `nova-chat-${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    playClick();
+    setExportOpen(false);
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const margin = 48;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const maxWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("Nova Chat Transcript", margin, y);
+    y += 22;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(`Persona: ${persona.name}  •  Exported: ${new Date().toLocaleString()}`, margin, y);
+    y += 20;
+    doc.setDrawColor(220);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 18;
+    doc.setTextColor(30);
+
+    const writeBlock = (label: string, body: string, labelColor: [number, number, number]) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(...labelColor);
+      if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+      doc.text(label, margin, y);
+      y += 14;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(30);
+      const lines = doc.splitTextToSize(body, maxWidth);
+      for (const line of lines) {
+        if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += 15;
+      }
+      y += 8;
+    };
+
+    for (const m of messages) {
+      if (m.role === "user") writeBlock("You", m.text, [37, 99, 235]);
+      else writeBlock("Nova", m.text, [22, 163, 74]);
+    }
+    doc.save(`nova-chat-${Date.now()}.pdf`);
   };
 
   const toggleVoice = () => {
@@ -442,14 +623,82 @@ function Index() {
       {/* Chat */}
       <main className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-border bg-card/60 px-4 py-3 backdrop-blur-sm md:px-10">
-          <div className="flex items-center gap-2 md:hidden text-primary">
-            <RobotAvatar size={28} winking={wink} floating={false} />
-            <span className="font-semibold text-foreground">Nova</span>
-          </div>
-          <div className="hidden md:block text-sm text-muted-foreground">
-            Chatting with <span className="font-semibold text-foreground">Nova</span>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 md:hidden text-primary">
+              <RobotAvatar size={28} winking={wink} floating={false} />
+              <span className="font-semibold text-foreground">Nova</span>
+            </div>
+            {/* Persona selector */}
+            <div className="relative">
+              <button
+                onClick={() => { playClick(); setPersonaOpen((o) => !o); setExportOpen(false); }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
+                aria-haspopup="listbox"
+                aria-expanded={personaOpen}
+              >
+                <span aria-hidden>{persona.emoji}</span>
+                <span className="hidden sm:inline">{persona.name}</span>
+                <span className="sm:hidden">Persona</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+              </button>
+              {personaOpen && (
+                <div
+                  className="absolute left-0 top-full z-40 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+                  role="listbox"
+                >
+                  {PERSONAS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => selectPersona(p.id)}
+                      className={`flex w-full items-start gap-2 px-3 py-2 text-left text-xs transition hover:bg-accent ${
+                        p.id === personaId ? "bg-accent/60" : ""
+                      }`}
+                      role="option"
+                      aria-selected={p.id === personaId}
+                    >
+                      <span className="text-base leading-none" aria-hidden>{p.emoji}</span>
+                      <span className="flex-1">
+                        <span className="block font-semibold text-foreground">{p.name}</span>
+                        <span className="block text-[11px] text-muted-foreground line-clamp-2">{p.system}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Export */}
+            <div className="relative">
+              <button
+                onClick={() => { playClick(); setExportOpen((o) => !o); setPersonaOpen(false); }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
+                aria-label="Export chat"
+                title="Export chat"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Export</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+              </button>
+              {exportOpen && (
+                <div className="absolute right-0 top-full z-40 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                  <button
+                    onClick={exportPdf}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-foreground transition hover:bg-accent"
+                  >
+                    <FileDown className="h-3.5 w-3.5 text-primary" />
+                    Download as PDF
+                  </button>
+                  <button
+                    onClick={exportTxt}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-foreground transition hover:bg-accent"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-primary" />
+                    Download as Text
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={toggleVoice}
               className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-border transition hover:bg-accent ${
@@ -538,6 +787,23 @@ function Index() {
                 )}
               </div>
             ))}
+            {messages.length === 1 && messages[0].id === "welcome" && !typing && (
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {persona.suggestions.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => handleSend(s)}
+                    className="group rounded-2xl border border-border bg-card p-3 text-left text-xs text-foreground shadow-sm transition hover:border-primary/40 hover:bg-accent"
+                  >
+                    <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                      <Sparkles className="h-3 w-3" />
+                      Try asking
+                    </div>
+                    <div className="leading-snug">{s}</div>
+                  </button>
+                ))}
+              </div>
+            )}
             {typing && (
               <div className="flex justify-start">
                 <div className="mr-2 mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
