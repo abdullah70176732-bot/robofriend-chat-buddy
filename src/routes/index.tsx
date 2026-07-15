@@ -1,12 +1,55 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2 } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Message = { id: string; role: "user" | "bot"; text: string };
+type Feedback = "up" | "down" | null;
+type Message = { id: string; role: "user" | "bot"; text: string; feedback?: Feedback };
+
+// --- Sound engine (Web Audio, no assets) ---
+let audioCtx: AudioContext | null = null;
+function getCtx(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  const AC = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AC) return null;
+  if (!audioCtx) audioCtx = new AC();
+  return audioCtx;
+}
+function playClick() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(880, t);
+  osc.frequency.exponentialRampToValueAtTime(440, t + 0.05);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.08, t + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.09);
+}
+function playPop() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(300, t);
+  osc.frequency.exponentialRampToValueAtTime(900, t + 0.09);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.14, t + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.2);
+}
 
 function RobotAvatar({
   size = 40,
@@ -85,8 +128,16 @@ function Index() {
   const [typing, setTyping] = useState(false);
   const [dark, setDark] = useState(false);
   const [wink, setWink] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const SpeechRecognitionCtor =
+    typeof window !== "undefined"
+      ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      : null;
+  const voiceSupported = !!SpeechRecognitionCtor;
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -115,13 +166,49 @@ function Index() {
         { id: crypto.randomUUID(), role: "bot", text: botReply(trimmed) },
       ]);
       setTyping(false);
+      playPop();
       inputRef.current?.focus();
     }, 1000);
   };
 
   const clearChat = () => {
+    playClick();
     setMessages([welcomeMsg]);
     inputRef.current?.focus();
+  };
+
+  const handleSend = (text: string) => {
+    playClick();
+    send(text);
+  };
+
+  const toggleListening = () => {
+    playClick();
+    if (!voiceSupported) return;
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const rec = new SpeechRecognitionCtor();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setInput((prev) => (prev ? prev + " " + transcript : transcript));
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    setListening(true);
+    rec.start();
+  };
+
+  const rate = (id: string, value: Feedback) => {
+    playClick();
+    setMessages((ms) =>
+      ms.map((m) => (m.id === id ? { ...m, feedback: m.feedback === value ? null : value } : m)),
+    );
   };
 
   return (
@@ -182,7 +269,10 @@ function Index() {
               Clear
             </button>
             <button
-              onClick={() => setDark((d) => !d)}
+              onClick={() => {
+                playClick();
+                setDark((d) => !d);
+              }}
               className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground transition hover:bg-accent"
               aria-label="Toggle dark mode"
             >
@@ -196,22 +286,46 @@ function Index() {
             {messages.map((m) => (
               <div
                 key={m.id}
-                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
               >
-                {m.role === "bot" && (
-                  <div className="mr-2 mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                    <RobotAvatar size={26} winking={wink} floating={false} />
+                <div className="flex w-full items-start gap-2" style={{ justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                  {m.role === "bot" && (
+                    <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <RobotAvatar size={26} winking={wink} floating={false} />
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
+                      m.role === "user"
+                        ? "rounded-br-sm bg-primary text-primary-foreground"
+                        : "rounded-bl-sm bg-card text-card-foreground border border-border"
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                </div>
+                {m.role === "bot" && m.id !== "welcome" && (
+                  <div className="mt-1 ml-11 flex items-center gap-1">
+                    <button
+                      onClick={() => rate(m.id, "up")}
+                      aria-label="Good response"
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition hover:bg-accent ${
+                        m.feedback === "up" ? "bg-accent text-primary" : "text-muted-foreground"
+                      }`}
+                    >
+                      <ThumbsUp className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => rate(m.id, "down")}
+                      aria-label="Bad response"
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition hover:bg-accent ${
+                        m.feedback === "down" ? "bg-accent text-destructive" : "text-muted-foreground"
+                      }`}
+                    >
+                      <ThumbsDown className="h-3 w-3" />
+                    </button>
                   </div>
                 )}
-                <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
-                    m.role === "user"
-                      ? "rounded-br-sm bg-primary text-primary-foreground"
-                      : "rounded-bl-sm bg-card text-card-foreground border border-border"
-                  }`}
-                >
-                  {m.text}
-                </div>
               </div>
             ))}
             {typing && (
@@ -238,7 +352,7 @@ function Index() {
               {QUICK.map(({ label, icon: Icon }) => (
                 <button
                   key={label}
-                  onClick={() => send(label)}
+                  onClick={() => handleSend(label)}
                   disabled={typing}
                   className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-foreground transition hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
                 >
@@ -250,7 +364,7 @@ function Index() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                send(input);
+                handleSend(input);
               }}
               className="flex items-center gap-2 rounded-2xl border border-border bg-background p-1.5 shadow-sm focus-within:ring-2 focus-within:ring-ring"
             >
@@ -261,6 +375,20 @@ function Index() {
                 placeholder="Type a message…"
                 className="flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
               />
+              {voiceSupported && (
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border transition ${
+                    listening
+                      ? "bg-destructive text-destructive-foreground animate-pulse"
+                      : "bg-background text-foreground hover:bg-accent"
+                  }`}
+                  aria-label={listening ? "Stop recording" : "Speak your message"}
+                >
+                  {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={!input.trim() || typing}
@@ -270,6 +398,11 @@ function Index() {
                 <Send className="h-4 w-4" />
               </button>
             </form>
+            {!voiceSupported && (
+              <p className="mt-2 text-center text-[10px] text-muted-foreground">
+                Voice input isn't supported in this browser.
+              </p>
+            )}
           </div>
         </div>
       </main>
