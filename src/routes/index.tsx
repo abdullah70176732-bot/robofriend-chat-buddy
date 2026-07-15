@@ -532,6 +532,13 @@ function Index() {
     try { localStorage.setItem(LANG_STORAGE, id); } catch { /* ignore */ }
   };
 
+  const selectTheme = (id: string) => {
+    playClick();
+    setThemeId(id);
+    setThemeOpen(false);
+    try { localStorage.setItem(THEME_STORAGE, id); } catch { /* ignore */ }
+  };
+
   const buildTranscript = () => {
     const stamp = new Date().toLocaleString();
     const lines = [
