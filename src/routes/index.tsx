@@ -560,7 +560,7 @@ function Index() {
     );
   }, [personaId, activeId]);
 
-  const speak = (text: string) => {
+  const speak = (text: string, id?: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
@@ -575,10 +575,24 @@ function Index() {
         voices.find((v) => v.lang?.toLowerCase() === language.bcp47.toLowerCase()) ||
         voices.find((v) => v.lang?.toLowerCase().startsWith(langPrefix));
       if (preferred) u.voice = preferred;
+      u.onend = () => setSpeakingId((cur) => (cur === (id ?? null) ? null : cur));
+      u.onerror = () => setSpeakingId((cur) => (cur === (id ?? null) ? null : cur));
+      setSpeakingId(id ?? null);
       window.speechSynthesis.speak(u);
     } catch {
       /* ignore */
     }
+  };
+
+  const toggleSpeakMessage = (id: string, text: string) => {
+    playClick();
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (speakingId === id) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+    speak(text, id);
   };
 
   useEffect(() => {
