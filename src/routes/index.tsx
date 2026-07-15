@@ -1664,8 +1664,11 @@ function Index() {
           </div>
         );
       })()}
-      {false && (
-        <div>
+      {showSettings && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => setShowSettings(false)}
+        >
           <div
             className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in"
             onClick={(e) => e.stopPropagation()}
