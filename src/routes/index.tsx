@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -117,6 +117,63 @@ const QUICK = [
   { label: "Say Hello", icon: MessageCircle },
 ];
 
+const GEMINI_MODEL = "gemini-2.5-flash";
+const API_KEY_STORAGE = "nova_gemini_api_key";
+
+async function callGemini(
+  apiKey: string,
+  history: { role: "user" | "bot"; text: string }[],
+  userText: string,
+): Promise<string> {
+  const contents = [
+    ...history.map((m) => ({
+      role: m.role === "bot" ? "model" : "user",
+      parts: [{ text: m.text }],
+    })),
+    { role: "user", parts: [{ text: userText }] },
+  ];
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: {
+          parts: [{
+            text: "You are Nova, a friendly, cheerful AI companion. Keep answers warm, concise, and helpful. Use light emoji occasionally.",
+          }],
+        },
+      }),
+    },
+  );
+  if (!res.ok) {
+    let msg = `Request failed (${res.status}).`;
+    try {
+      const j = await res.json();
+      const detail = j?.error?.message;
+      if (res.status === 400 && /API key/i.test(detail || "")) {
+        msg = "That API key looks invalid. Please double-check it in Settings.";
+      } else if (res.status === 401 || res.status === 403) {
+        msg = "Your Gemini API key was rejected. Open Settings and add a valid key.";
+      } else if (res.status === 429) {
+        msg = "Gemini rate limit reached. Please wait a moment and try again.";
+      } else if (detail) {
+        msg = detail;
+      }
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.map((p: any) => p?.text)
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  if (!text) throw new Error("Gemini returned an empty response. Try again.");
+  return text;
+}
+
 function Index() {
   const welcomeMsg: Message = {
     id: "welcome",
@@ -132,6 +189,10 @@ function Index() {
   const [voiceOn, setVoiceOn] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState<string>("");
+  const [showSettings, setShowSettings] = useState(false);
+  const [keyDraft, setKeyDraft] = useState("");
+  const [showKey, setShowKey] = useState(false);
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -144,6 +205,11 @@ function Index() {
 
   useEffect(() => {
     setMounted(true);
+    try {
+      const saved = localStorage.getItem(API_KEY_STORAGE);
+      if (saved) setApiKey(saved);
+      else setShowSettings(true);
+    } catch { /* ignore */ }
   }, []);
 
   const speak = (text: string) => {
@@ -177,26 +243,54 @@ function Index() {
     inputRef.current?.focus();
   }, []);
 
-  const send = (text: string) => {
+  const send = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", text: trimmed };
+    const history = messages.filter((m) => m.id !== "welcome").map(({ role, text }) => ({ role, text }));
     setMessages((m) => [...m, userMsg]);
     setInput("");
     setTyping(true);
     setWink(true);
     setTimeout(() => setWink(false), 700);
-    setTimeout(() => {
-      const reply = botReply(trimmed);
+
+    if (!apiKey) {
       setMessages((m) => [
         ...m,
-        { id: crypto.randomUUID(), role: "bot", text: reply },
+        {
+          id: crypto.randomUUID(),
+          role: "bot",
+          text: "I need a Gemini API key to think! 🔑 Click the ⚙️ Settings icon at the top to add yours — you can grab a free key at aistudio.google.com/apikey.",
+        },
       ]);
       setTyping(false);
+      setShowSettings(true);
+      playPop();
+      return;
+    }
+
+    try {
+      const reply = await callGemini(apiKey, history, trimmed);
+      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "bot", text: reply }]);
       playPop();
       if (voiceOn) speak(reply);
+    } catch (err: any) {
+      const msg = err?.message || "Something went wrong reaching Gemini.";
+      const invalid = /API key|rejected/i.test(msg);
+      setMessages((m) => [
+        ...m,
+        {
+          id: crypto.randomUUID(),
+          role: "bot",
+          text: `⚠️ ${msg}${invalid ? " Open ⚙️ Settings to update it." : ""}`,
+        },
+      ]);
+      if (invalid) setShowSettings(true);
+      playPop();
+    } finally {
+      setTyping(false);
       inputRef.current?.focus();
-    }, 1000);
+    }
   };
 
   const clearChat = () => {
@@ -218,6 +312,29 @@ function Index() {
   const handleSend = (text: string) => {
     playClick();
     send(text);
+  };
+
+  const openSettings = () => {
+    playClick();
+    setKeyDraft(apiKey);
+    setShowKey(false);
+    setShowSettings(true);
+  };
+  const saveKey = () => {
+    playClick();
+    const trimmed = keyDraft.trim();
+    setApiKey(trimmed);
+    try {
+      if (trimmed) localStorage.setItem(API_KEY_STORAGE, trimmed);
+      else localStorage.removeItem(API_KEY_STORAGE);
+    } catch { /* ignore */ }
+    setShowSettings(false);
+  };
+  const clearKey = () => {
+    playClick();
+    setKeyDraft("");
+    setApiKey("");
+    try { localStorage.removeItem(API_KEY_STORAGE); } catch { /* ignore */ }
   };
 
   const toggleListening = async () => {
@@ -344,6 +461,16 @@ function Index() {
               {voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
             </button>
             <button
+              onClick={openSettings}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-border transition hover:bg-accent ${
+                apiKey ? "bg-background text-foreground" : "bg-destructive/10 text-destructive"
+              }`}
+              aria-label="Gemini API settings"
+              title={apiKey ? "Gemini connected" : "Add Gemini API key"}
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+            <button
               onClick={clearChat}
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
               aria-label="Clear chat"
@@ -417,10 +544,13 @@ function Index() {
                   <RobotAvatar size={26} winking={wink} floating={false} />
                 </div>
                 <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-3 shadow-sm">
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1">
                     <span className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]" />
                     <span className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:-0.15s]" />
                     <span className="h-2 w-2 animate-bounce rounded-full bg-primary" />
+                    </div>
+                    <span className="text-xs text-muted-foreground">Nova is thinking…</span>
                   </div>
                 </div>
               </div>
@@ -492,6 +622,87 @@ function Index() {
           </div>
         </div>
       </main>
+      {showSettings && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => setShowSettings(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <KeyRound className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">Gemini API Key</h2>
+                  <p className="text-xs text-muted-foreground">Stored only in your browser.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="rounded-full p-1 text-muted-foreground hover:bg-accent"
+                aria-label="Close settings"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="block text-xs font-medium text-foreground">Your API key</label>
+            <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-ring">
+              <input
+                type={showKey ? "text" : "password"}
+                value={keyDraft}
+                onChange={(e) => setKeyDraft(e.target.value)}
+                placeholder="AIza…"
+                autoComplete="off"
+                spellCheck={false}
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey((s) => !s)}
+                className="text-[11px] font-medium text-muted-foreground hover:text-foreground"
+              >
+                {showKey ? "Hide" : "Show"}
+              </button>
+            </div>
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              Get a free key from Google AI Studio <ExternalLink className="h-3 w-3" />
+            </a>
+            <div className="mt-5 flex items-center justify-between gap-2">
+              <button
+                onClick={clearKey}
+                disabled={!apiKey && !keyDraft}
+                className="text-xs font-medium text-muted-foreground hover:text-destructive disabled:opacity-40"
+              >
+                Remove key
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="rounded-full border border-border bg-background px-4 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveKey}
+                  disabled={!keyDraft.trim()}
+                  className="rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
