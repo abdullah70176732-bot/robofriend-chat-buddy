@@ -1426,6 +1426,34 @@ function Index() {
           </div>
         </div>
       </main>
+      {historyOpen && (
+        <div
+          className="fixed inset-0 z-50 flex md:hidden"
+          onClick={() => setHistoryOpen(false)}
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <aside
+            className="relative flex h-full w-72 max-w-[85vw] flex-col p-5 text-white shadow-2xl"
+            style={{ background: "var(--gradient-sidebar)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold">Your chats</h2>
+                <p className="text-[11px] uppercase tracking-widest text-white/70">History</p>
+              </div>
+              <button
+                onClick={() => setHistoryOpen(false)}
+                className="rounded-full p-1 text-white/80 hover:bg-white/15"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex flex-1 flex-col overflow-hidden">{chatList}</div>
+          </aside>
+        </div>
+      )}
       {showSettings && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
