@@ -622,6 +622,87 @@ function Index() {
           </div>
         </div>
       </main>
+      {showSettings && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => setShowSettings(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <KeyRound className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">Gemini API Key</h2>
+                  <p className="text-xs text-muted-foreground">Stored only in your browser.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="rounded-full p-1 text-muted-foreground hover:bg-accent"
+                aria-label="Close settings"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="block text-xs font-medium text-foreground">Your API key</label>
+            <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-ring">
+              <input
+                type={showKey ? "text" : "password"}
+                value={keyDraft}
+                onChange={(e) => setKeyDraft(e.target.value)}
+                placeholder="AIza…"
+                autoComplete="off"
+                spellCheck={false}
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey((s) => !s)}
+                className="text-[11px] font-medium text-muted-foreground hover:text-foreground"
+              >
+                {showKey ? "Hide" : "Show"}
+              </button>
+            </div>
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              Get a free key from Google AI Studio <ExternalLink className="h-3 w-3" />
+            </a>
+            <div className="mt-5 flex items-center justify-between gap-2">
+              <button
+                onClick={clearKey}
+                disabled={!apiKey && !keyDraft}
+                className="text-xs font-medium text-muted-foreground hover:text-destructive disabled:opacity-40"
+              >
+                Remove key
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="rounded-full border border-border bg-background px-4 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveKey}
+                  disabled={!keyDraft.trim()}
+                  className="rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
