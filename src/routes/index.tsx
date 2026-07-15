@@ -440,6 +440,7 @@ function Index() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [imageMode, setImageMode] = useState(false);
   const [dark, setDark] = useState(false);
   const [wink, setWink] = useState(false);
   const [listening, setListening] = useState(false);
