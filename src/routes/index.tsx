@@ -547,6 +547,16 @@ function Index() {
     } catch { /* ignore */ }
   }, [conversations, activeId, mounted]);
 
+  // Persist advanced AI settings
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      localStorage.setItem(CUSTOM_SYSTEM_STORAGE, customSystem);
+      localStorage.setItem(TEMPERATURE_STORAGE, String(temperature));
+      localStorage.setItem(MAX_TOKENS_STORAGE, String(maxTokens));
+    } catch { /* ignore */ }
+  }, [customSystem, temperature, maxTokens, mounted]);
+
   // Keep the welcome message in sync with the active persona (only when active chat is fresh)
   useEffect(() => {
     setConversations((cs) =>
