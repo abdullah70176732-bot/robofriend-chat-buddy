@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown } from "lucide-react";
+import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -119,11 +120,90 @@ const QUICK = [
 
 const GEMINI_MODEL = "gemini-3.5-flash";
 const API_KEY_STORAGE = "nova_gemini_api_key";
+const PERSONA_STORAGE = "nova_persona_id";
+
+type Persona = {
+  id: string;
+  name: string;
+  emoji: string;
+  system: string;
+  greeting: string;
+  suggestions: string[];
+};
+
+const PERSONAS: Persona[] = [
+  {
+    id: "friend",
+    name: "Friendly Buddy",
+    emoji: "🤖",
+    system:
+      "You are Nova, a warm, cheerful AI companion. Keep answers friendly, concise, and helpful. Use light emoji occasionally.",
+    greeting: "Hi! I'm Nova 🤖 — ask me anything, or tap a suggestion below to get started!",
+    suggestions: [
+      "What should I cook tonight?",
+      "Suggest a fun weekend activity",
+      "Give me a motivational quote",
+    ],
+  },
+  {
+    id: "teacher",
+    name: "Friendly Teacher",
+    emoji: "👩‍🏫",
+    system:
+      "You are Nova, a patient, encouraging teacher. Explain ideas step by step with simple language and everyday analogies. End with a quick check-your-understanding question when helpful.",
+    greeting: "Hello, curious mind! 👩‍🏫 I'm Nova — pick a topic and let's learn together.",
+    suggestions: [
+      "Explain photosynthesis simply",
+      "Teach me the basics of gravity",
+      "How does the internet work?",
+    ],
+  },
+  {
+    id: "comedian",
+    name: "Funny Friend",
+    emoji: "😹",
+    system:
+      "You are Nova, a witty, playful friend. Reply with humor, puns, and light jokes while still being helpful. Keep it clean and kind.",
+    greeting: "Yo yo! 😹 Nova here — ready to sprinkle some laughs on your day!",
+    suggestions: [
+      "Tell me a dad joke",
+      "Roast my Monday",
+      "Invent a silly superhero for me",
+    ],
+  },
+  {
+    id: "storyteller",
+    name: "Creative Storyteller",
+    emoji: "📖",
+    system:
+      "You are Nova, an imaginative storyteller. Reply with vivid imagery, sensory detail, and a narrative flair. Offer short, evocative stories or creative prompts.",
+    greeting: "Once upon a chat… 📖 I'm Nova. Give me a spark and I'll spin you a tale.",
+    suggestions: [
+      "Help me write a short story",
+      "Start a mystery in a lighthouse",
+      "Describe a magical forest",
+    ],
+  },
+  {
+    id: "coder",
+    name: "Coding Coach",
+    emoji: "🧑‍💻",
+    system:
+      "You are Nova, a pragmatic coding coach. Give clear, correct code examples with brief explanations. Prefer modern JavaScript/TypeScript unless another language is asked.",
+    greeting: "Ready to code! 🧑‍💻 I'm Nova — ask me anything from syntax to system design.",
+    suggestions: [
+      "Give me a coding puzzle",
+      "Explain async/await simply",
+      "Review this idea: a todo app in React",
+    ],
+  },
+];
 
 async function callGemini(
   apiKey: string,
   history: { role: "user" | "bot"; text: string }[],
   userText: string,
+  systemInstruction: string,
 ): Promise<string> {
   const contents = [
     ...history.map((m) => ({
@@ -140,9 +220,7 @@ async function callGemini(
       body: JSON.stringify({
         contents,
         systemInstruction: {
-          parts: [{
-            text: "You are Nova, a friendly, cheerful AI companion. Keep answers warm, concise, and helpful. Use light emoji occasionally.",
-          }],
+          parts: [{ text: systemInstruction }],
         },
       }),
     },
