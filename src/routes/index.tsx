@@ -481,10 +481,13 @@ function Index() {
                 <Send className="h-4 w-4" />
               </button>
             </form>
-            {!voiceSupported && (
+            {mounted && !voiceSupported && (
               <p className="mt-2 text-center text-[10px] text-muted-foreground">
                 Voice input isn't supported in this browser.
               </p>
+            )}
+            {micError && (
+              <p className="mt-2 text-center text-[11px] text-destructive">{micError}</p>
             )}
           </div>
         </div>
