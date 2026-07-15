@@ -1,12 +1,51 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Bot, Sparkles, MessageCircle, Zap } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
 type Message = { id: string; role: "user" | "bot"; text: string };
+
+function RobotAvatar({
+  size = 40,
+  winking = false,
+  floating = true,
+}: {
+  size?: number;
+  winking?: boolean;
+  floating?: boolean;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      className={floating ? "robot-float" : ""}
+      aria-hidden
+    >
+      {/* antenna */}
+      <line x1="32" y1="6" x2="32" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="32" cy="5" r="2.5" fill="currentColor" />
+      {/* head */}
+      <rect x="10" y="12" width="44" height="36" rx="12" fill="currentColor" />
+      {/* face plate */}
+      <rect x="15" y="19" width="34" height="22" rx="8" fill="white" fillOpacity="0.95" />
+      {/* left eye */}
+      <circle cx="25" cy="30" r="3.2" fill="currentColor" />
+      {/* right eye — winks */}
+      <g className={winking ? "robot-wink" : ""} style={{ transformOrigin: "39px 30px", transformBox: "fill-box" }}>
+        <circle cx="39" cy="30" r="3.2" fill="currentColor" />
+      </g>
+      {/* smile */}
+      <path d="M26 35 Q32 39 38 35" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
+      {/* ears */}
+      <rect x="6" y="24" width="4" height="12" rx="2" fill="currentColor" />
+      <rect x="54" y="24" width="4" height="12" rx="2" fill="currentColor" />
+    </svg>
+  );
+}
 
 const JOKES = [
   "Why did the robot go on vacation? To recharge its batteries! 🔋",
@@ -36,17 +75,22 @@ const QUICK = [
 ];
 
 function Index() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      role: "bot",
-      text: "Hi! I'm RoboFriend 🤖 — ask me anything, or tap a quick button below to get started!",
-    },
-  ]);
+  const welcomeMsg: Message = {
+    id: "welcome",
+    role: "bot",
+    text: "Hi! I'm RoboFriend 🤖 — ask me anything, or tap a quick button below to get started!",
+  };
+  const [messages, setMessages] = useState<Message[]>([welcomeMsg]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [dark, setDark] = useState(false);
+  const [wink, setWink] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -63,6 +107,8 @@ function Index() {
     setMessages((m) => [...m, userMsg]);
     setInput("");
     setTyping(true);
+    setWink(true);
+    setTimeout(() => setWink(false), 700);
     setTimeout(() => {
       setMessages((m) => [
         ...m,
@@ -70,7 +116,12 @@ function Index() {
       ]);
       setTyping(false);
       inputRef.current?.focus();
-    }, 550);
+    }, 1000);
+  };
+
+  const clearChat = () => {
+    setMessages([welcomeMsg]);
+    inputRef.current?.focus();
   };
 
   return (
@@ -81,9 +132,9 @@ function Index() {
         style={{ background: "var(--gradient-sidebar)" }}
       >
         <div>
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
-              <Bot className="h-7 w-7" />
+          <div className="flex items-center gap-3 text-white">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
+              <RobotAvatar size={40} winking={wink} />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">RoboFriend</h1>
@@ -113,10 +164,30 @@ function Index() {
 
       {/* Chat */}
       <main className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-card/60 px-6 py-4 backdrop-blur-sm md:hidden">
+        <header className="flex items-center justify-between border-b border-border bg-card/60 px-4 py-3 backdrop-blur-sm md:px-10">
+          <div className="flex items-center gap-2 md:hidden text-primary">
+            <RobotAvatar size={28} winking={wink} floating={false} />
+            <span className="font-semibold text-foreground">RoboFriend</span>
+          </div>
+          <div className="hidden md:block text-sm text-muted-foreground">
+            Chatting with <span className="font-semibold text-foreground">RoboFriend</span>
+          </div>
           <div className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-primary" />
-            <span className="font-semibold">RoboFriend</span>
+            <button
+              onClick={clearChat}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
+              aria-label="Clear chat"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear
+            </button>
+            <button
+              onClick={() => setDark((d) => !d)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground transition hover:bg-accent"
+              aria-label="Toggle dark mode"
+            >
+              {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
           </div>
         </header>
 
@@ -128,8 +199,8 @@ function Index() {
                 className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 {m.role === "bot" && (
-                  <div className="mr-2 mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                    <Bot className="h-4 w-4" />
+                  <div className="mr-2 mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                    <RobotAvatar size={26} winking={wink} floating={false} />
                   </div>
                 )}
                 <div
@@ -145,8 +216,8 @@ function Index() {
             ))}
             {typing && (
               <div className="flex justify-start">
-                <div className="mr-2 mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                  <Bot className="h-4 w-4" />
+                <div className="mr-2 mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <RobotAvatar size={26} winking={wink} floating={false} />
                 </div>
                 <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-3 shadow-sm">
                   <div className="flex gap-1">
