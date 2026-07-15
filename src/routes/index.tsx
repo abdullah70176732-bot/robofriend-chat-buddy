@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette, Copy, Check } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe, ImagePlus, Palette, Copy, Check, History, Plus, Pencil } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/")({
@@ -125,6 +125,7 @@ const PERSONA_STORAGE = "nova_persona_id";
 const LANG_STORAGE = "nova_language_id";
 const THEME_STORAGE = "nova_theme_id";
 const MESSAGES_STORAGE = "nova_messages_v1";
+const CONVERSATIONS_STORAGE = "nova_conversations_v1";
 
 // --- Markdown-ish renderer: fenced code blocks with copy button ---
 function CodeBlock({ code, lang }: { code: string; lang?: string }) {
@@ -289,6 +290,13 @@ const PERSONAS: Persona[] = [
 ];
 
 type ChatTurn = { role: "user" | "bot"; text: string; image?: string };
+
+type Conversation = {
+  id: string;
+  title: string;
+  messages: Message[];
+  updatedAt: number;
+};
 
 function dataUrlToInlineData(dataUrl: string): { mimeType: string; data: string } | null {
   const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
