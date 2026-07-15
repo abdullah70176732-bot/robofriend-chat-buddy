@@ -403,7 +403,30 @@ function Index() {
   const [themeId, setThemeId] = useState<string>(THEMES[0].id);
   const theme = THEMES.find((t) => t.id === themeId) ?? THEMES[0];
   const welcomeMsg: Message = { id: "welcome", role: "bot", text: persona.greeting };
-  const [messages, setMessages] = useState<Message[]>([welcomeMsg]);
+  const initialConv: Conversation = { id: "default", title: "New chat", messages: [welcomeMsg], updatedAt: Date.now() };
+  const [conversations, setConversations] = useState<Conversation[]>([initialConv]);
+  const [activeId, setActiveId] = useState<string>(initialConv.id);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const activeConv = conversations.find((c) => c.id === activeId) ?? conversations[0];
+  const messages = activeConv.messages;
+  const setMessages: React.Dispatch<React.SetStateAction<Message[]>> = (updater) => {
+    setConversations((cs) =>
+      cs.map((c) =>
+        c.id === activeConv.id
+          ? {
+              ...c,
+              messages:
+                typeof updater === "function"
+                  ? (updater as (m: Message[]) => Message[])(c.messages)
+                  : updater,
+              updatedAt: Date.now(),
+            }
+          : c,
+      ),
+    );
+  };
   const [personaOpen, setPersonaOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
