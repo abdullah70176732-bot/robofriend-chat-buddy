@@ -1019,7 +1019,7 @@ function Index() {
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-white/70">
               Your chats
             </p>
-            <div className="max-h-[52vh]">{chatList}</div>
+            <div className="flex max-h-[52vh] flex-col">{chatList}</div>
           </div>
         </div>
         <p className="text-xs text-white/60">Made with 💙 for good conversations.</p>
