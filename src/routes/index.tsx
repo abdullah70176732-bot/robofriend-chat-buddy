@@ -5,11 +5,13 @@ import {
   Send, Mic, MicOff, Volume2, VolumeX, Trash2, Battery, BatteryCharging,
   Sparkles, Zap, Rocket, Bot, Smile, Frown, Coffee, Flame, CheckCircle2, Circle, Menu, X,
   Palette, Globe, Plus, MessageSquare, Wand2, Gamepad2, Trophy, Award,
+  BarChart3, ImagePlus, Brain,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: NexusApp });
 
-type Msg = { id: string; role: "user" | "bot"; text: string };
+type Msg = { id: string; role: "user" | "bot"; text: string; image?: string; sentiment?: Sentiment; ts?: number };
+type Sentiment = "positive" | "neutral" | "analytical" | "negative";
 type Mood = "happy" | "sad" | "bored" | "energetic";
 type Session = { id: string; title: string; messages: Msg[]; createdAt: number };
 type EyeStyle = "round" | "square" | "star" | "visor";
@@ -48,6 +50,73 @@ const LANG_KEY = "robofriend_lang_v1";
 const CUSTOM_KEY = "robofriend_custom_v1";
 const ACH_KEY = "robofriend_achievements_v1";
 const STATS_KEY = "robofriend_stats_v1";
+const MEMORY_KEY = "nexus_memory_v1";
+const PRODUCTIVITY_KEY = "nexus_productivity_v1";
+
+type MemoryTopic = { text: string; ts: number; sentiment: Sentiment };
+type Memory = { preferences: string[]; topics: MemoryTopic[] };
+type ProductivityDay = { date: string; score: number };
+
+// Simple lexical sentiment classifier — good enough for a weekly trend chart.
+function classifySentiment(text: string): Sentiment {
+  const t = text.toLowerCase();
+  const pos = /\b(love|great|awesome|happy|excited|amazing|good|thanks|thank you|nice|yay|cool|win|success|glad|😊|😄|🎉|❤️|🚀)\b/;
+  const neg = /\b(hate|sad|angry|bad|terrible|awful|frustrat|tired|stress|worried|anxious|stuck|fail|😢|😡|😞)\b/;
+  const ana = /\b(how|why|explain|analyze|compare|calculate|difference|reason|because|therefore|data|logic|algorithm|code|function)\b|\?/;
+  if (pos.test(t) && !neg.test(t)) return "positive";
+  if (neg.test(t)) return "negative";
+  if (ana.test(t)) return "analytical";
+  return "neutral";
+}
+
+// Extract explicit preferences / goals / identity from user text.
+function extractPreferences(text: string): string[] {
+  const out: string[] = [];
+  const patterns: RegExp[] = [
+    /\bmy name is ([^\.\n,!?]{2,40})/i,
+    /\bi(?:'m| am) ([a-z][^\.\n,!?]{1,60})/i,
+    /\bi (?:like|love|enjoy|prefer) ([^\.\n!?]{2,80})/i,
+    /\bi (?:hate|dislike|can't stand) ([^\.\n!?]{2,80})/i,
+    /\bmy (?:goal|dream|plan) (?:is )?(?:to )?([^\.\n!?]{2,100})/i,
+    /\bi (?:want|need|hope) to ([^\.\n!?]{2,100})/i,
+    /\bi (?:work|study) (?:as|at|in) ([^\.\n!?]{2,60})/i,
+    /\bremember (?:that )?([^\.\n!?]{2,120})/i,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m?.[1]) out.push(m[0].trim());
+  }
+  return out;
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Build a compact retrieval block for the model, biased to recent + query-relevant topics.
+function buildMemoryContext(mem: Memory, query: string): string {
+  const parts: string[] = [];
+  if (mem.preferences.length) {
+    parts.push("User preferences / identity:\n" + mem.preferences.slice(-8).map((p) => `- ${p}`).join("\n"));
+  }
+  if (mem.topics.length) {
+    const q = query.toLowerCase();
+    const qWords = q.split(/\W+/).filter((w) => w.length > 3);
+    const scored = mem.topics.map((t) => {
+      const days = Math.max(1, (Date.now() - t.ts) / 86400000);
+      const rel = qWords.filter((w) => t.text.toLowerCase().includes(w)).length;
+      return { t, score: rel * 3 + 1 / days };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const top = scored.slice(0, 6).map(({ t }) => {
+      const ago = Math.round((Date.now() - t.ts) / 86400000);
+      const when = ago <= 0 ? "today" : ago === 1 ? "yesterday" : `${ago} days ago`;
+      return `- (${when}) ${t.text}`;
+    });
+    parts.push("Recent discussion topics:\n" + top.join("\n"));
+  }
+  return parts.join("\n\n");
+}
 
 const BODY_COLORS = [
   { id: "cyan", label: "Cyan", from: "#22d3ee", to: "#d946ef" },
@@ -212,8 +281,13 @@ function NexusApp() {
   const [rpsScore, setRpsScore] = useState({ user: 0, bot: 0 });
   const [rpsMsg, setRpsMsg] = useState<string>("Make your move!");
   const [toast, setToast] = useState<Achievement | null>(null);
+  const [memory, setMemory] = useState<Memory>({ preferences: [], topics: [] });
+  const [productivity, setProductivity] = useState<ProductivityDay[]>([]);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recogRef = useRef<any>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const active = sessions.find((s) => s.id === activeId);
   const messages = active?.messages ?? [];
@@ -238,6 +312,10 @@ function NexusApp() {
       if (savedAch) setUnlocked(JSON.parse(savedAch));
       const savedStats = localStorage.getItem(STATS_KEY);
       if (savedStats) setStats(JSON.parse(savedStats));
+      const savedMem = localStorage.getItem(MEMORY_KEY);
+      if (savedMem) setMemory(JSON.parse(savedMem));
+      const savedProd = localStorage.getItem(PRODUCTIVITY_KEY);
+      if (savedProd) setProductivity(JSON.parse(savedProd));
     } catch {
       const s = makeSession();
       setSessions([s]);
@@ -262,6 +340,19 @@ function NexusApp() {
   useEffect(() => { if (hydrated) localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom)); }, [custom, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem(ACH_KEY, JSON.stringify(unlocked)); }, [unlocked, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }, [stats, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem(MEMORY_KEY, JSON.stringify(memory)); }, [memory, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem(PRODUCTIVITY_KEY, JSON.stringify(productivity)); }, [productivity, hydrated]);
+
+  // Recompute today's productivity score whenever quests change.
+  useEffect(() => {
+    if (!hydrated) return;
+    const score = Math.round((quests.filter(Boolean).length / QUESTS.length) * 100);
+    setProductivity((list) => {
+      const key = todayKey();
+      const rest = list.filter((d) => d.date !== key);
+      return [...rest, { date: key, score }].slice(-30);
+    });
+  }, [quests, hydrated]);
 
   function unlock(id: string) {
     if (unlocked.includes(id)) return;
@@ -337,9 +428,12 @@ function NexusApp() {
 
   async function send(raw?: string) {
     const text = (raw ?? input).trim();
-    if (!text || !active) return;
+    if ((!text && !pendingImage) || !active) return;
     setInput("");
-    const userMsg: Msg = { id: crypto.randomUUID(), role: "user", text };
+    const image = pendingImage;
+    setPendingImage(null);
+    const sentiment = classifySentiment(text || "shared an image");
+    const userMsg: Msg = { id: crypto.randomUUID(), role: "user", text: text || "(shared an image)", image: image || undefined, sentiment, ts: Date.now() };
     const nextMessages = [...active.messages, userMsg];
     const langLabel = LANGUAGES.find((l) => l.code === language)?.label || "English";
     updateActive((s) => ({
@@ -349,14 +443,36 @@ function NexusApp() {
     }));
     setBattery((b) => Math.max(0, b - 3));
     setStats((s) => ({ ...s, msgs: s.msgs + 1 }));
+
+    // RAG: update long-term memory with extracted preferences and this topic.
+    const newPrefs = extractPreferences(text);
+    const topicText = text.slice(0, 140);
+    const updatedMemory: Memory = {
+      preferences: Array.from(new Set([...memory.preferences, ...newPrefs])).slice(-20),
+      topics: [...memory.topics, ...(topicText ? [{ text: topicText, ts: Date.now(), sentiment }] : [])].slice(-60),
+    };
+    setMemory(updatedMemory);
+    const memoryContext = buildMemoryContext(updatedMemory, text);
+
     setTyping(true);
     try {
       const payload = {
         language: langLabel,
-        messages: nextMessages.map((m) => ({
-          role: m.role === "bot" ? "assistant" as const : "user" as const,
-          content: m.text,
-        })),
+        memory: memoryContext,
+        messages: nextMessages.map((m, idx) => {
+          const role = m.role === "bot" ? ("assistant" as const) : ("user" as const);
+          // Attach the image only on the final user turn using multimodal parts.
+          if (idx === nextMessages.length - 1 && m.image) {
+            return {
+              role,
+              content: [
+                { type: "text", text: m.text || "What's in this image?" },
+                { type: "image_url", image_url: { url: m.image } },
+              ],
+            };
+          }
+          return { role, content: m.text };
+        }),
       };
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -365,12 +481,27 @@ function NexusApp() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Request failed");
-      pushBot(data.text || "Beep boop 🤖 (empty reply)");
+      const reply = data.text || "Beep boop 🤖 (empty reply)";
+      const botMsg: Msg = { id: crypto.randomUUID(), role: "bot", text: reply, sentiment: classifySentiment(reply), ts: Date.now() };
+      updateActive((s) => ({ ...s, messages: [...s.messages, botMsg] }));
+      speak(reply);
     } catch (err: any) {
       pushBot(`⚠️ Circuits fizzled: ${err?.message || "unknown error"}. Try again in a moment 🤖`);
     } finally {
       setTyping(false);
     }
+  }
+
+  function handleImagePick(file: File) {
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 5 * 1024 * 1024) { alert("Image too large (max 5MB)."); return; }
+    const reader = new FileReader();
+    reader.onload = () => setPendingImage(String(reader.result));
+    reader.readAsDataURL(file);
+  }
+
+  function clearMemory() {
+    setMemory({ preferences: [], topics: [] });
   }
 
   function pickMood(m: Mood) {
@@ -605,6 +736,10 @@ function NexusApp() {
                 className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 hover:border-rose-400/40 hover:text-rose-200 transition">
                 <Trash2 className="h-4 w-4" /> Clear
               </button>
+              <button onClick={() => setShowDashboard(true)} title="Analytics dashboard"
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition">
+                <BarChart3 className="h-4 w-4" /> Insights
+              </button>
             </div>
           </header>
 
@@ -619,7 +754,10 @@ function NexusApp() {
                       ? "bg-gradient-to-br from-cyan-500 to-fuchsia-600 text-white shadow-fuchsia-500/20"
                       : "border border-white/10 bg-white/5 text-slate-100 backdrop-blur"
                   }`}>
-                    {m.text}
+                    {m.image && (
+                      <img src={m.image} alt="attached" className="mb-2 max-h-64 rounded-xl border border-white/20 object-cover" />
+                    )}
+                    <div className="whitespace-pre-wrap">{m.text}</div>
                   </div>
                 </div>
               ))}
@@ -652,10 +790,23 @@ function NexusApp() {
 
           {/* Composer */}
           <div className="border-t border-white/10 bg-slate-950/80 px-4 py-4 backdrop-blur-xl md:px-8">
+            {pendingImage && (
+              <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 rounded-xl border border-cyan-400/30 bg-cyan-400/5 p-2">
+                <img src={pendingImage} alt="pending" className="h-14 w-14 rounded-lg object-cover" />
+                <span className="flex-1 text-xs text-cyan-200">Image ready — send a message and Nexus will analyze it.</span>
+                <button onClick={() => setPendingImage(null)} className="text-xs text-slate-400 hover:text-rose-300">Remove</button>
+              </div>
+            )}
             <div className="mx-auto flex max-w-3xl items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-2 shadow-2xl shadow-cyan-500/5">
               <button onClick={toggleMic} title="Voice input"
                 className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition ${listening ? "bg-rose-500/20 text-rose-300 animate-pulse" : "text-slate-300 hover:bg-white/10"}`}>
                 {listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+              </button>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImagePick(f); e.target.value = ""; }} />
+              <button onClick={() => fileRef.current?.click()} title="Attach image"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-slate-300 hover:bg-white/10 transition">
+                <ImagePlus className="h-5 w-5" />
               </button>
               <input
                 value={input}
@@ -664,7 +815,7 @@ function NexusApp() {
                 placeholder="Talk to Nexus..."
                 className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
               />
-              <button onClick={() => send()} disabled={!input.trim()}
+              <button onClick={() => send()} disabled={!input.trim() && !pendingImage}
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/30 transition hover:brightness-110 disabled:opacity-40">
                 <Send className="h-4 w-4" />
               </button>
@@ -791,6 +942,172 @@ function NexusApp() {
           </div>
         </div>
       )}
+
+      {/* Analytics Dashboard */}
+      {showDashboard && (
+        <AnalyticsPanel
+          sessions={sessions}
+          memory={memory}
+          productivity={productivity}
+          onClose={() => setShowDashboard(false)}
+          onClearMemory={clearMemory}
+        />
+      )}
+    </div>
+  );
+}
+
+function AnalyticsPanel({
+  sessions, memory, productivity, onClose, onClearMemory,
+}: {
+  sessions: Session[];
+  memory: Memory;
+  productivity: ProductivityDay[];
+  onClose: () => void;
+  onClearMemory: () => void;
+}) {
+  // Aggregate sentiment for the last 7 days from all user messages.
+  const days: { key: string; label: string; counts: Record<Sentiment, number> }[] = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    days.push({
+      key: d.toISOString().slice(0, 10),
+      label: d.toLocaleDateString(undefined, { weekday: "short" }),
+      counts: { positive: 0, neutral: 0, analytical: 0, negative: 0 },
+    });
+  }
+  const allMsgs = sessions.flatMap((s) => s.messages).filter((m) => m.role === "user" && m.ts);
+  for (const m of allMsgs) {
+    const key = new Date(m.ts!).toISOString().slice(0, 10);
+    const bucket = days.find((d) => d.key === key);
+    if (bucket && m.sentiment) bucket.counts[m.sentiment]++;
+  }
+  const totals = allMsgs.reduce(
+    (acc, m) => { if (m.sentiment) acc[m.sentiment]++; return acc; },
+    { positive: 0, neutral: 0, analytical: 0, negative: 0 } as Record<Sentiment, number>,
+  );
+  const totalAll = Math.max(1, totals.positive + totals.neutral + totals.analytical + totals.negative);
+  const maxDay = Math.max(1, ...days.map((d) => d.counts.positive + d.counts.neutral + d.counts.analytical + d.counts.negative));
+  const todayProd = productivity.find((p) => p.date === todayKey())?.score ?? 0;
+  const avgProd = productivity.length
+    ? Math.round(productivity.slice(-7).reduce((a, b) => a + b.score, 0) / Math.min(7, productivity.length))
+    : 0;
+
+  const colorFor: Record<Sentiment, string> = {
+    positive: "#34d399",
+    neutral: "#94a3b8",
+    analytical: "#22d3ee",
+    negative: "#fb7185",
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-2xl border border-white/10 bg-slate-900/95 p-6 shadow-2xl shadow-cyan-500/10">
+        <button onClick={onClose} className="absolute right-4 top-4 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
+        <h2 className="mb-1 flex items-center gap-2 text-xl font-bold bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">
+          <BarChart3 className="h-5 w-5 text-cyan-300" /> Telemetry Dashboard
+        </h2>
+        <p className="mb-5 text-xs text-slate-400">AI-analyzed sentiment, productivity, and long-term memory.</p>
+
+        {/* Productivity score */}
+        <div className="mb-5 grid grid-cols-2 gap-3">
+          <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4">
+            <div className="text-xs uppercase tracking-widest text-cyan-200/70">Today's productivity</div>
+            <div className="mt-1 text-3xl font-bold text-cyan-200">{todayProd}<span className="text-base text-slate-400">/100</span></div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-400 transition-all" style={{ width: `${todayProd}%` }} />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-400/5 p-4">
+            <div className="text-xs uppercase tracking-widest text-fuchsia-200/70">7-day average</div>
+            <div className="mt-1 text-3xl font-bold text-fuchsia-200">{avgProd}<span className="text-base text-slate-400">/100</span></div>
+            <div className="mt-2 text-xs text-slate-400">Based on completed quests</div>
+          </div>
+        </div>
+
+        {/* Weekly sentiment trend */}
+        <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-200">Weekly mood trend</h3>
+            <div className="flex flex-wrap gap-2 text-[10px] text-slate-400">
+              {(Object.keys(colorFor) as Sentiment[]).map((s) => (
+                <span key={s} className="flex items-center gap-1 capitalize">
+                  <span className="h-2 w-2 rounded-full" style={{ background: colorFor[s] }} /> {s}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="flex h-40 items-end gap-2">
+            {days.map((d) => {
+              const total = d.counts.positive + d.counts.neutral + d.counts.analytical + d.counts.negative;
+              const h = (total / maxDay) * 100;
+              return (
+                <div key={d.key} className="flex flex-1 flex-col items-center gap-1">
+                  <div className="flex w-full flex-1 flex-col-reverse overflow-hidden rounded-md bg-white/5" style={{ height: `${Math.max(6, h)}%`, minHeight: 6 }}>
+                    {(["positive", "analytical", "neutral", "negative"] as Sentiment[]).map((s) =>
+                      d.counts[s] > 0 ? (
+                        <div key={s} style={{ height: `${(d.counts[s] / total) * 100}%`, background: colorFor[s] }} />
+                      ) : null,
+                    )}
+                  </div>
+                  <span className="text-[10px] text-slate-400">{d.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[11px]">
+            {(Object.keys(colorFor) as Sentiment[]).map((s) => (
+              <div key={s} className="rounded-lg bg-white/5 p-2">
+                <div className="text-lg font-bold" style={{ color: colorFor[s] }}>
+                  {Math.round((totals[s] / totalAll) * 100)}%
+                </div>
+                <div className="capitalize text-slate-400">{s}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Memory */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+              <Brain className="h-4 w-4 text-fuchsia-300" /> Long-term memory
+            </h3>
+            <button onClick={onClearMemory} className="text-[11px] text-slate-400 hover:text-rose-300">Clear</button>
+          </div>
+          {memory.preferences.length === 0 && memory.topics.length === 0 ? (
+            <p className="text-xs text-slate-400">No memory stored yet. Nexus will remember your preferences, goals, and topics as you chat.</p>
+          ) : (
+            <div className="space-y-3">
+              {memory.preferences.length > 0 && (
+                <div>
+                  <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-400">Preferences & identity</div>
+                  <ul className="space-y-1 text-xs text-slate-200">
+                    {memory.preferences.slice(-6).map((p, i) => (
+                      <li key={i} className="rounded-lg bg-white/5 px-2 py-1">• {p}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {memory.topics.length > 0 && (
+                <div>
+                  <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-400">Recent topics</div>
+                  <ul className="space-y-1 text-xs text-slate-300">
+                    {memory.topics.slice(-5).reverse().map((t, i) => (
+                      <li key={i} className="flex items-start gap-2 rounded-lg bg-white/5 px-2 py-1">
+                        <span className="h-2 w-2 mt-1.5 shrink-0 rounded-full" style={{ background: colorFor[t.sentiment] }} />
+                        <span className="flex-1">{t.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
