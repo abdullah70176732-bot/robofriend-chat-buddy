@@ -130,6 +130,8 @@ function Index() {
   const [wink, setWink] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceOn, setVoiceOn] = useState(true);
+  const [mounted, setMounted] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -138,7 +140,11 @@ function Index() {
     typeof window !== "undefined"
       ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       : null;
-  const voiceSupported = !!SpeechRecognitionCtor;
+  const voiceSupported = mounted && !!SpeechRecognitionCtor;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const speak = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -214,26 +220,61 @@ function Index() {
     send(text);
   };
 
-  const toggleListening = () => {
+  const toggleListening = async () => {
     playClick();
-    if (!voiceSupported) return;
+    setMicError(null);
+    if (!SpeechRecognitionCtor) {
+      setMicError("Voice input isn't supported in this browser. Try Chrome on desktop.");
+      return;
+    }
     if (listening) {
       recognitionRef.current?.stop();
       return;
     }
-    const rec = new SpeechRecognitionCtor();
-    rec.lang = "en-US";
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-    rec.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      setInput((prev) => (prev ? prev + " " + transcript : transcript));
-    };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    recognitionRef.current = rec;
-    setListening(true);
-    rec.start();
+    // Explicitly request mic permission from a user gesture so the browser prompts.
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // We only needed permission; SpeechRecognition manages its own stream.
+      stream.getTracks().forEach((t) => t.stop());
+    } catch (err: any) {
+      if (err?.name === "NotAllowedError") {
+        setMicError("Microphone blocked. Enable it in your browser's site settings and try again.");
+      } else if (err?.name === "NotFoundError") {
+        setMicError("No microphone found on this device.");
+      } else if (err?.name === "NotReadableError") {
+        setMicError("Your microphone is in use by another app.");
+      } else {
+        setMicError("Couldn't access the microphone. Please check permissions.");
+      }
+      return;
+    }
+    try {
+      const rec = new SpeechRecognitionCtor();
+      rec.lang = "en-US";
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      rec.onresult = (e: any) => {
+        const transcript = e.results[0][0].transcript;
+        setInput((prev) => (prev ? prev + " " + transcript : transcript));
+      };
+      rec.onend = () => setListening(false);
+      rec.onerror = (e: any) => {
+        setListening(false);
+        if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+          setMicError("Microphone permission denied.");
+        } else if (e?.error === "no-speech") {
+          setMicError("Didn't catch that — try speaking a bit louder.");
+        } else if (e?.error === "network") {
+          setMicError("Speech service is unreachable. Check your internet connection.");
+        }
+      };
+      recognitionRef.current = rec;
+      setListening(true);
+      rec.start();
+    } catch {
+      setListening(false);
+      setMicError("Couldn't start voice input. Please try again.");
+    }
   };
 
   const rate = (id: string, value: Feedback) => {
