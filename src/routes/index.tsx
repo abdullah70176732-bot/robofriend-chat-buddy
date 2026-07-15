@@ -899,7 +899,88 @@ function Index() {
 
   const handleSend = (text: string) => {
     playClick();
-    send(text);
+    if (imageMode) {
+      generateImage(text);
+    } else {
+      send(text);
+    }
+  };
+
+  const generateImage = async (prompt: string) => {
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+    const userMsg: Message = { id: crypto.randomUUID(), role: "user", text: `🎨 ${trimmed}` };
+    setMessages((m) => [...m, userMsg]);
+    setInput("");
+    setTyping(true);
+    setWink(true);
+    setTimeout(() => setWink(false), 700);
+
+    if (activeConv.title === "New chat") {
+      const title = trimmed.slice(0, 40);
+      setConversations((cs) => cs.map((c) => (c.id === activeConv.id ? { ...c, title } : c)));
+    }
+
+    if (!apiKey) {
+      setMessages((m) => [
+        ...m,
+        { id: crypto.randomUUID(), role: "bot", text: "I need a Gemini API key to generate images! 🔑 Open ⚙️ Settings to add one." },
+      ]);
+      setTyping(false);
+      setShowSettings(true);
+      playPop();
+      return;
+    }
+
+    try {
+      const started = Date.now();
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: trimmed }] }],
+            generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+          }),
+        },
+      );
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Image generation failed (${res.status}): ${errText.slice(0, 200)}`);
+      }
+      const data: any = await res.json();
+      const parts: any[] = data?.candidates?.[0]?.content?.parts ?? [];
+      let imgDataUrl: string | undefined;
+      let caption = "";
+      for (const p of parts) {
+        if (p?.inlineData?.data) {
+          const mime = p.inlineData.mimeType || "image/png";
+          imgDataUrl = `data:${mime};base64,${p.inlineData.data}`;
+        } else if (p?.text) {
+          caption += p.text;
+        }
+      }
+      const elapsed = Date.now() - started;
+      setResponseTimes((r) => [...r, elapsed]);
+      if (!imgDataUrl) throw new Error("Model returned no image. Try rephrasing your prompt.");
+      const botId = crypto.randomUUID();
+      setMessages((m) => [
+        ...m,
+        { id: botId, role: "bot", text: caption.trim() || `Here's your image: ${trimmed}`, image: imgDataUrl },
+      ]);
+      playPop();
+    } catch (err: any) {
+      const msg = err?.message || "Image generation failed.";
+      setMessages((m) => [
+        ...m,
+        { id: crypto.randomUUID(), role: "bot", text: `⚠️ ${msg}` },
+      ]);
+      playPop();
+    } finally {
+      setTyping(false);
+      inputRef.current?.focus();
+    }
   };
 
   const openSettings = () => {
