@@ -1612,7 +1612,7 @@ function Index() {
           onClick={() => setShowSettings(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl"
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between">
@@ -1621,8 +1621,8 @@ function Index() {
                   <KeyRound className="h-4 w-4" />
                 </div>
                 <div>
-                  <h2 className="text-base font-semibold text-foreground">Gemini API Key</h2>
-                  <p className="text-xs text-muted-foreground">Stored only in your browser.</p>
+                  <h2 className="text-base font-semibold text-foreground">AI Settings</h2>
+                  <p className="text-xs text-muted-foreground">All stored only in your browser.</p>
                 </div>
               </div>
               <button
