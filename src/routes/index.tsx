@@ -809,7 +809,7 @@ function Index() {
           {/* Language selector */}
           <div className="relative">
             <button
-              onClick={() => { playClick(); setLangOpen((o) => !o); setPersonaOpen(false); setExportOpen(false); }}
+              onClick={() => { playClick(); setLangOpen((o) => !o); setPersonaOpen(false); setExportOpen(false); setThemeOpen(false); }}
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
               aria-haspopup="listbox"
               aria-expanded={langOpen}
@@ -839,6 +839,48 @@ function Index() {
                     <span className="flex-1">
                       <span className="block font-semibold text-foreground">{l.nativeName}</span>
                       <span className="block text-[11px] text-muted-foreground">{l.name}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Theme selector */}
+          <div className="relative">
+            <button
+              onClick={() => { playClick(); setThemeOpen((o) => !o); setPersonaOpen(false); setExportOpen(false); setLangOpen(false); }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
+              aria-haspopup="listbox"
+              aria-expanded={themeOpen}
+              title="Background theme"
+            >
+              <Palette className="h-3.5 w-3.5 opacity-70" />
+              <span aria-hidden>{theme.emoji}</span>
+              <span className="hidden sm:inline">{theme.name}</span>
+              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+            </button>
+            {themeOpen && (
+              <div
+                className="absolute left-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+                role="listbox"
+              >
+                {THEMES.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => selectTheme(t.id)}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition hover:bg-accent ${
+                      t.id === themeId ? "bg-accent/60" : ""
+                    }`}
+                    role="option"
+                    aria-selected={t.id === themeId}
+                  >
+                    <span
+                      className="h-5 w-5 flex-shrink-0 rounded-full border border-border"
+                      style={{ background: t.gradient }}
+                      aria-hidden
+                    />
+                    <span className="flex-1">
+                      <span className="block font-semibold text-foreground">{t.emoji} {t.name}</span>
                     </span>
                   </button>
                 ))}
