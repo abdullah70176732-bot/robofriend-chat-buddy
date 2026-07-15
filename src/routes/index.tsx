@@ -128,6 +128,7 @@ type Language = { id: string; name: string; nativeName: string; flag: string; bc
 const LANGUAGES: Language[] = [
   { id: "en", name: "English", nativeName: "English", flag: "🇺🇸", bcp47: "en-US" },
   { id: "hi", name: "Hindi", nativeName: "हिन्दी", flag: "🇮🇳", bcp47: "hi-IN" },
+  { id: "ur", name: "Urdu", nativeName: "اردو", flag: "🇵🇰", bcp47: "ur-PK" },
   { id: "es", name: "Spanish", nativeName: "Español", flag: "🇪🇸", bcp47: "es-ES" },
   { id: "fr", name: "French", nativeName: "Français", flag: "🇫🇷", bcp47: "fr-FR" },
   { id: "de", name: "German", nativeName: "Deutsch", flag: "🇩🇪", bcp47: "de-DE" },
