@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown } from "lucide-react";
+import { Send, Sparkles, MessageCircle, Zap, Moon, Sun, Trash2, Mic, MicOff, ThumbsUp, ThumbsDown, Volume2, VolumeX, Settings, KeyRound, X, ExternalLink, Download, FileText, FileDown, ChevronDown, Globe } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 export const Route = createFileRoute("/")({
@@ -121,6 +121,23 @@ const QUICK = [
 const GEMINI_MODEL = "gemini-3.5-flash";
 const API_KEY_STORAGE = "nova_gemini_api_key";
 const PERSONA_STORAGE = "nova_persona_id";
+const LANG_STORAGE = "nova_language_id";
+
+type Language = { id: string; name: string; nativeName: string; flag: string; bcp47: string };
+
+const LANGUAGES: Language[] = [
+  { id: "en", name: "English", nativeName: "English", flag: "🇺🇸", bcp47: "en-US" },
+  { id: "hi", name: "Hindi", nativeName: "हिन्दी", flag: "🇮🇳", bcp47: "hi-IN" },
+  { id: "es", name: "Spanish", nativeName: "Español", flag: "🇪🇸", bcp47: "es-ES" },
+  { id: "fr", name: "French", nativeName: "Français", flag: "🇫🇷", bcp47: "fr-FR" },
+  { id: "de", name: "German", nativeName: "Deutsch", flag: "🇩🇪", bcp47: "de-DE" },
+  { id: "it", name: "Italian", nativeName: "Italiano", flag: "🇮🇹", bcp47: "it-IT" },
+  { id: "pt", name: "Portuguese", nativeName: "Português", flag: "🇵🇹", bcp47: "pt-PT" },
+  { id: "ja", name: "Japanese", nativeName: "日本語", flag: "🇯🇵", bcp47: "ja-JP" },
+  { id: "zh", name: "Chinese", nativeName: "中文", flag: "🇨🇳", bcp47: "zh-CN" },
+  { id: "ar", name: "Arabic", nativeName: "العربية", flag: "🇸🇦", bcp47: "ar-SA" },
+  { id: "ru", name: "Russian", nativeName: "Русский", flag: "🇷🇺", bcp47: "ru-RU" },
+];
 
 type Persona = {
   id: string;
@@ -255,10 +272,13 @@ async function callGemini(
 function Index() {
   const [personaId, setPersonaId] = useState<string>(PERSONAS[0].id);
   const persona = PERSONAS.find((p) => p.id === personaId) ?? PERSONAS[0];
+  const [languageId, setLanguageId] = useState<string>(LANGUAGES[0].id);
+  const language = LANGUAGES.find((l) => l.id === languageId) ?? LANGUAGES[0];
   const welcomeMsg: Message = { id: "welcome", role: "bot", text: persona.greeting };
   const [messages, setMessages] = useState<Message[]>([welcomeMsg]);
   const [personaOpen, setPersonaOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [dark, setDark] = useState(false);
@@ -291,6 +311,10 @@ function Index() {
       if (savedPersona && PERSONAS.some((p) => p.id === savedPersona)) {
         setPersonaId(savedPersona);
       }
+      const savedLang = localStorage.getItem(LANG_STORAGE);
+      if (savedLang && LANGUAGES.some((l) => l.id === savedLang)) {
+        setLanguageId(savedLang);
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -312,10 +336,12 @@ function Index() {
       u.rate = 1;
       u.pitch = 1.15;
       u.volume = 1;
+      u.lang = language.bcp47;
       const voices = window.speechSynthesis.getVoices();
+      const langPrefix = language.bcp47.toLowerCase().split("-")[0];
       const preferred =
-        voices.find((v) => /female|zira|samantha|google.*english/i.test(v.name)) ||
-        voices.find((v) => v.lang?.toLowerCase().startsWith("en"));
+        voices.find((v) => v.lang?.toLowerCase() === language.bcp47.toLowerCase()) ||
+        voices.find((v) => v.lang?.toLowerCase().startsWith(langPrefix));
       if (preferred) u.voice = preferred;
       window.speechSynthesis.speak(u);
     } catch {
@@ -362,7 +388,8 @@ function Index() {
     }
 
     try {
-      const reply = await callGemini(apiKey, history, trimmed, persona.system);
+      const systemInstruction = `${persona.system}\n\nAlways reply in ${language.name} (${language.nativeName}), regardless of the language the user writes in. Keep any code snippets in their original language.`;
+      const reply = await callGemini(apiKey, history, trimmed, systemInstruction);
       setMessages((m) => [...m, { id: crypto.randomUUID(), role: "bot", text: reply }]);
       playPop();
       if (voiceOn) speak(reply);
@@ -397,6 +424,13 @@ function Index() {
     setPersonaId(id);
     setPersonaOpen(false);
     try { localStorage.setItem(PERSONA_STORAGE, id); } catch { /* ignore */ }
+  };
+
+  const selectLanguage = (id: string) => {
+    playClick();
+    setLanguageId(id);
+    setLangOpen(false);
+    try { localStorage.setItem(LANG_STORAGE, id); } catch { /* ignore */ }
   };
 
   const buildTranscript = () => {
@@ -548,7 +582,7 @@ function Index() {
     }
     try {
       const rec = new SpeechRecognitionCtor();
-      rec.lang = "en-US";
+      rec.lang = language.bcp47;
       rec.interimResults = false;
       rec.maxAlternatives = 1;
       rec.onresult = (e: any) => {
