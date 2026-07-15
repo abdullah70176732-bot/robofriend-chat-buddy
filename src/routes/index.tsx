@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import confetti from "canvas-confetti";
 import {
   Send, Mic, MicOff, Volume2, VolumeX, Trash2, Battery, BatteryCharging,
   Sparkles, Zap, Rocket, Bot, Smile, Frown, Coffee, Flame, CheckCircle2, Circle, Menu, X,
-  Palette, Globe, Plus, MessageSquare,
+  Palette, Globe, Plus, MessageSquare, Wand2, Gamepad2, Trophy, Award,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: Robofriend });
@@ -11,6 +12,11 @@ export const Route = createFileRoute("/")({ component: Robofriend });
 type Msg = { id: string; role: "user" | "bot"; text: string };
 type Mood = "happy" | "sad" | "bored" | "energetic";
 type Session = { id: string; title: string; messages: Msg[]; createdAt: number };
+type EyeStyle = "round" | "square" | "star" | "visor";
+type Hat = "none" | "party" | "wizard" | "crown" | "cap";
+type Customization = { body: string; eyes: EyeStyle; hat: Hat };
+type RPSChoice = "rock" | "paper" | "scissors";
+type Achievement = { id: string; label: string; desc: string; icon: string };
 
 const THEMES = [
   { id: "default", label: "Neon Blue" },
@@ -39,6 +45,44 @@ const SESSIONS_KEY = "robofriend_sessions_v1";
 const ACTIVE_KEY = "robofriend_active_v1";
 const THEME_KEY = "robofriend_theme_v1";
 const LANG_KEY = "robofriend_lang_v1";
+const CUSTOM_KEY = "robofriend_custom_v1";
+const ACH_KEY = "robofriend_achievements_v1";
+const STATS_KEY = "robofriend_stats_v1";
+
+const BODY_COLORS = [
+  { id: "cyan", label: "Cyan", from: "#22d3ee", to: "#d946ef" },
+  { id: "emerald", label: "Emerald", from: "#34d399", to: "#22d3ee" },
+  { id: "sunset", label: "Sunset", from: "#fb923c", to: "#f43f5e" },
+  { id: "violet", label: "Violet", from: "#a78bfa", to: "#ec4899" },
+  { id: "gold", label: "Gold", from: "#fde047", to: "#f97316" },
+  { id: "ice", label: "Ice", from: "#e0f2fe", to: "#60a5fa" },
+];
+
+const EYES: { id: EyeStyle; label: string }[] = [
+  { id: "round", label: "Round" },
+  { id: "square", label: "Square" },
+  { id: "star", label: "Star" },
+  { id: "visor", label: "Visor" },
+];
+
+const HATS: { id: Hat; label: string }[] = [
+  { id: "none", label: "None" },
+  { id: "party", label: "Party" },
+  { id: "wizard", label: "Wizard" },
+  { id: "crown", label: "Crown" },
+  { id: "cap", label: "Cap" },
+];
+
+const ACHIEVEMENTS: Achievement[] = [
+  { id: "first_chat", label: "First Chat!", desc: "Send your first message", icon: "💬" },
+  { id: "chatty", label: "Chatterbox", desc: "Send 10 messages", icon: "🗨️" },
+  { id: "recharge_5", label: "Power User", desc: "Recharge 5 times", icon: "🔋" },
+  { id: "quest_all", label: "Quest Master", desc: "Complete all daily quests", icon: "🏆" },
+  { id: "game_win", label: "Beat Robofriend", desc: "Win a game vs Robofriend", icon: "🎮" },
+  { id: "game_streak", label: "Hot Streak", desc: "Win 3 games in a row", icon: "🔥" },
+  { id: "customizer", label: "Style Icon", desc: "Customize your robot", icon: "🎨" },
+  { id: "mood_swing", label: "Mood Explorer", desc: "Try every mood", icon: "🎭" },
+];
 
 const MOODS: { id: Mood; label: string; icon: typeof Smile; greeting: string }[] = [
   { id: "happy", label: "Happy", icon: Smile, greeting: "Yesss! 🤖⚡ Your good vibes just charged my circuits! Let's make today legendary 🚀" },
@@ -55,12 +99,80 @@ const QUESTS = [
   "Write down one win from today 🏆",
 ];
 
-function RoboAvatar({ talking }: { talking: boolean }) {
+function RoboSVG({ c, size = 44 }: { c: Customization; size?: number }) {
+  const color = BODY_COLORS.find((x) => x.id === c.body) ?? BODY_COLORS[0];
   return (
-    <div className={`relative h-11 w-11 shrink-0 rounded-2xl bg-gradient-to-br from-cyan-400 to-fuchsia-500 p-[2px] ${talking ? "animate-pulse" : ""}`}>
-      <div className="flex h-full w-full items-center justify-center rounded-2xl bg-slate-950">
-        <Bot className="h-6 w-6 text-cyan-300" />
-      </div>
+    <svg viewBox="0 0 64 64" width={size} height={size} className="drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]">
+      <defs>
+        <linearGradient id={`body-${c.body}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={color.from} />
+          <stop offset="100%" stopColor={color.to} />
+        </linearGradient>
+      </defs>
+      {/* antenna */}
+      <line x1="32" y1="10" x2="32" y2="16" stroke={color.to} strokeWidth="1.5" />
+      <circle cx="32" cy="9" r="2" fill={color.to} />
+      {/* head */}
+      <rect x="14" y="16" width="36" height="30" rx="8" fill={`url(#body-${c.body})`} />
+      <rect x="14" y="16" width="36" height="30" rx="8" fill="none" stroke="rgba(255,255,255,0.25)" />
+      {/* eyes */}
+      {c.eyes === "round" && (
+        <>
+          <circle cx="24" cy="30" r="4" fill="#0f172a" />
+          <circle cx="40" cy="30" r="4" fill="#0f172a" />
+          <circle cx="25" cy="29" r="1.2" fill="#fff" />
+          <circle cx="41" cy="29" r="1.2" fill="#fff" />
+        </>
+      )}
+      {c.eyes === "square" && (
+        <>
+          <rect x="20" y="26" width="8" height="8" rx="1" fill="#0f172a" />
+          <rect x="36" y="26" width="8" height="8" rx="1" fill="#0f172a" />
+          <rect x="22" y="28" width="2" height="2" fill="#22d3ee" />
+          <rect x="38" y="28" width="2" height="2" fill="#22d3ee" />
+        </>
+      )}
+      {c.eyes === "star" && (
+        <>
+          <text x="24" y="34" fontSize="10" textAnchor="middle" fill="#fde047">★</text>
+          <text x="40" y="34" fontSize="10" textAnchor="middle" fill="#fde047">★</text>
+        </>
+      )}
+      {c.eyes === "visor" && (
+        <rect x="18" y="26" width="28" height="6" rx="3" fill="#0f172a" stroke="#22d3ee" strokeWidth="0.6" />
+      )}
+      {/* mouth */}
+      <rect x="24" y="38" width="16" height="3" rx="1.5" fill="rgba(15,23,42,0.7)" />
+      {/* body */}
+      <rect x="20" y="48" width="24" height="12" rx="4" fill={`url(#body-${c.body})`} opacity="0.9" />
+      {/* hats */}
+      {c.hat === "party" && (
+        <polygon points="32,2 24,16 40,16" fill="#f43f5e" stroke="#fff" strokeWidth="0.5" />
+      )}
+      {c.hat === "wizard" && (
+        <>
+          <polygon points="32,0 22,18 42,18" fill="#6366f1" />
+          <circle cx="28" cy="8" r="1" fill="#fde047" />
+          <circle cx="34" cy="12" r="0.8" fill="#fff" />
+        </>
+      )}
+      {c.hat === "crown" && (
+        <polygon points="18,16 22,8 26,14 32,6 38,14 42,8 46,16" fill="#fde047" stroke="#f97316" strokeWidth="0.5" />
+      )}
+      {c.hat === "cap" && (
+        <>
+          <path d="M14,16 Q32,4 50,16 Z" fill="#22d3ee" />
+          <rect x="14" y="15" width="36" height="3" fill="#0891b2" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function RoboAvatar({ talking, custom }: { talking: boolean; custom: Customization }) {
+  return (
+    <div className={`relative h-11 w-11 shrink-0 rounded-2xl bg-slate-900/60 p-1 ${talking ? "animate-pulse" : ""}`}>
+      <RoboSVG c={custom} size={36} />
       <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_2px_rgba(52,211,153,0.8)]" />
     </div>
   );
@@ -91,6 +203,15 @@ function Robofriend() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<string>("default");
   const [language, setLanguage] = useState<string>("en");
+  const [custom, setCustom] = useState<Customization>({ body: "cyan", eyes: "round", hat: "none" });
+  const [unlocked, setUnlocked] = useState<string[]>([]);
+  const [stats, setStats] = useState({ recharges: 0, msgs: 0, wins: 0, streak: 0, moods: [] as Mood[] });
+  const [panel, setPanel] = useState<"none" | "avatar" | "game" | "achievements">("none");
+  const [rpsUser, setRpsUser] = useState<RPSChoice | null>(null);
+  const [rpsBot, setRpsBot] = useState<RPSChoice | null>(null);
+  const [rpsScore, setRpsScore] = useState({ user: 0, bot: 0 });
+  const [rpsMsg, setRpsMsg] = useState<string>("Make your move!");
+  const [toast, setToast] = useState<Achievement | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recogRef = useRef<any>(null);
 
@@ -111,6 +232,12 @@ function Robofriend() {
       setActiveId(activeExists ? savedActive : list[0].id);
       setTheme(savedTheme);
       setLanguage(savedLang);
+      const savedCustom = localStorage.getItem(CUSTOM_KEY);
+      if (savedCustom) setCustom(JSON.parse(savedCustom));
+      const savedAch = localStorage.getItem(ACH_KEY);
+      if (savedAch) setUnlocked(JSON.parse(savedAch));
+      const savedStats = localStorage.getItem(STATS_KEY);
+      if (savedStats) setStats(JSON.parse(savedStats));
     } catch {
       const s = makeSession();
       setSessions([s]);
@@ -132,6 +259,39 @@ function Robofriend() {
     else document.documentElement.setAttribute("data-theme", theme);
   }, [theme, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem(LANG_KEY, language); }, [language, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom)); }, [custom, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem(ACH_KEY, JSON.stringify(unlocked)); }, [unlocked, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }, [stats, hydrated]);
+
+  function unlock(id: string) {
+    if (unlocked.includes(id)) return;
+    const ach = ACHIEVEMENTS.find((a) => a.id === id);
+    if (!ach) return;
+    setUnlocked((u) => [...u, id]);
+    setToast(ach);
+    setTimeout(() => setToast(null), 3800);
+    try {
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ["#22d3ee", "#d946ef", "#a78bfa", "#fde047"] });
+    } catch { /* noop */ }
+  }
+
+  // Auto-unlock checks
+  useEffect(() => {
+    if (!hydrated) return;
+    if (stats.msgs >= 1) unlock("first_chat");
+    if (stats.msgs >= 10) unlock("chatty");
+    if (stats.recharges >= 5) unlock("recharge_5");
+    if (stats.wins >= 1) unlock("game_win");
+    if (stats.streak >= 3) unlock("game_streak");
+    if (stats.moods.length >= MOODS.length) unlock("mood_swing");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (quests.every(Boolean)) unlock("quest_all");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quests, hydrated]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -188,6 +348,7 @@ function Robofriend() {
       messages: nextMessages,
     }));
     setBattery((b) => Math.max(0, b - 3));
+    setStats((s) => ({ ...s, msgs: s.msgs + 1 }));
     setTyping(true);
     try {
       const payload = {
@@ -215,6 +376,7 @@ function Robofriend() {
   function pickMood(m: Mood) {
     if (!active) return;
     setMood(m);
+    setStats((s) => (s.moods.includes(m) ? s : { ...s, moods: [...s.moods, m] }));
     const g = MOODS.find((x) => x.id === m)!.greeting;
     updateActive((s) => ({ ...s, messages: [...s.messages, { id: crypto.randomUUID(), role: "bot", text: g }] }));
     speak(g);
@@ -229,7 +391,33 @@ function Robofriend() {
 
   function recharge() {
     setBattery(100);
+    setStats((s) => ({ ...s, recharges: s.recharges + 1 }));
     pushBot("⚡⚡⚡ Fully recharged! 🤖 Ready to launch 🚀");
+  }
+
+  function playRPS(choice: RPSChoice) {
+    const options: RPSChoice[] = ["rock", "paper", "scissors"];
+    const bot = options[Math.floor(Math.random() * 3)];
+    setRpsUser(choice); setRpsBot(bot);
+    if (choice === bot) { setRpsMsg("It's a tie! 🤝"); return; }
+    const userWins =
+      (choice === "rock" && bot === "scissors") ||
+      (choice === "paper" && bot === "rock") ||
+      (choice === "scissors" && bot === "paper");
+    if (userWins) {
+      setRpsScore((s) => ({ ...s, user: s.user + 1 }));
+      setRpsMsg("You win this round! 🎉");
+      setStats((s) => ({ ...s, wins: s.wins + 1, streak: s.streak + 1 }));
+    } else {
+      setRpsScore((s) => ({ ...s, bot: s.bot + 1 }));
+      setRpsMsg("Robofriend wins! 🤖⚡");
+      setStats((s) => ({ ...s, streak: 0 }));
+    }
+  }
+
+  function updateCustom(patch: Partial<Customization>) {
+    setCustom((c) => ({ ...c, ...patch }));
+    unlock("customizer");
   }
 
   function toggleQuest(i: number) {
@@ -262,6 +450,7 @@ function Robofriend() {
 
   const batteryColor = battery > 50 ? "text-emerald-400" : battery > 20 ? "text-amber-400" : "text-rose-400";
   const doneCount = useMemo(() => quests.filter(Boolean).length, [quests]);
+  const rpsEmoji = (c: RPSChoice | null) => (c === "rock" ? "✊" : c === "paper" ? "✋" : c === "scissors" ? "✌️" : "❔");
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans relative overflow-hidden">
@@ -280,13 +469,26 @@ function Robofriend() {
           <div className="flex h-full flex-col p-5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <RoboAvatar talking={typing} />
+                <RoboAvatar talking={typing} custom={custom} />
                 <div>
                   <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">Robofriend</h1>
                   <p className="text-xs text-slate-400">Neon companion v2050</p>
                 </div>
               </div>
               <button className="md:hidden text-slate-400" onClick={() => setSidebarOpen(false)}><X className="h-5 w-5" /></button>
+            </div>
+
+            {/* Feature buttons */}
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <button onClick={() => setPanel("avatar")} className="flex flex-col items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-2 text-[10px] text-slate-200 hover:border-cyan-400/40 hover:text-cyan-200 transition">
+                <Wand2 className="h-4 w-4" /> Avatar
+              </button>
+              <button onClick={() => setPanel("game")} className="flex flex-col items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-2 text-[10px] text-slate-200 hover:border-fuchsia-400/40 hover:text-fuchsia-200 transition">
+                <Gamepad2 className="h-4 w-4" /> Games
+              </button>
+              <button onClick={() => setPanel("achievements")} className="flex flex-col items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-2 text-[10px] text-slate-200 hover:border-amber-400/40 hover:text-amber-200 transition">
+                <Trophy className="h-4 w-4" /> Awards
+              </button>
             </div>
 
             {/* Chat sessions */}
@@ -411,7 +613,7 @@ function Robofriend() {
             <div className="mx-auto max-w-3xl space-y-4">
               {messages.map((m) => (
                 <div key={m.id} className={`flex items-end gap-3 ${m.role === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                  {m.role === "bot" && <RoboAvatar talking={false} />}
+                  {m.role === "bot" && <RoboAvatar talking={false} custom={custom} />}
                   <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-lg ${
                     m.role === "user"
                       ? "bg-gradient-to-br from-cyan-500 to-fuchsia-600 text-white shadow-fuchsia-500/20"
@@ -423,7 +625,7 @@ function Robofriend() {
               ))}
               {typing && (
                 <div className="flex items-end gap-3">
-                  <RoboAvatar talking />
+                  <RoboAvatar talking custom={custom} />
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
                     <div className="flex items-center gap-1">
                       <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-300 [animation-delay:-0.3s]" />
@@ -473,6 +675,122 @@ function Robofriend() {
           </div>
         </main>
       </div>
+
+      {/* Modal panels */}
+      {panel !== "none" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setPanel("none")}>
+          <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-white/10 bg-slate-900/95 p-6 shadow-2xl shadow-cyan-500/10">
+            <button onClick={() => setPanel("none")} className="absolute right-4 top-4 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
+
+            {panel === "avatar" && (
+              <div>
+                <h2 className="mb-1 text-xl font-bold bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">Robot Customizer</h2>
+                <p className="mb-4 text-xs text-slate-400">Design your Robofriend — style updates live.</p>
+                <div className="mb-4 grid place-items-center rounded-2xl border border-white/10 bg-slate-950/60 p-6">
+                  <RoboSVG c={custom} size={140} />
+                </div>
+                <div className="mb-4">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Body Color</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {BODY_COLORS.map((b) => (
+                      <button key={b.id} onClick={() => updateCustom({ body: b.id })} title={b.label}
+                        className={`h-9 w-9 rounded-full border-2 transition ${custom.body === b.id ? "border-white scale-110" : "border-white/20 hover:border-white/50"}`}
+                        style={{ background: `linear-gradient(135deg, ${b.from}, ${b.to})` }} />
+                    ))}
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Eyes</h3>
+                  <div className="grid grid-cols-4 gap-2">
+                    {EYES.map((e) => (
+                      <button key={e.id} onClick={() => updateCustom({ eyes: e.id })}
+                        className={`rounded-xl border px-2 py-2 text-xs transition ${custom.eyes === e.id ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-200" : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20"}`}>
+                        {e.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Hat</h3>
+                  <div className="grid grid-cols-5 gap-2">
+                    {HATS.map((h) => (
+                      <button key={h.id} onClick={() => updateCustom({ hat: h.id })}
+                        className={`rounded-xl border px-2 py-2 text-xs transition ${custom.hat === h.id ? "border-fuchsia-400/60 bg-fuchsia-400/10 text-fuchsia-200" : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20"}`}>
+                        {h.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {panel === "game" && (
+              <div>
+                <h2 className="mb-1 text-xl font-bold bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">Rock · Paper · Scissors</h2>
+                <p className="mb-4 text-xs text-slate-400">Face off against Robofriend!</p>
+                <div className="mb-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
+                    <div className="text-xs text-slate-400">You</div>
+                    <div className="my-2 text-5xl">{rpsEmoji(rpsUser)}</div>
+                    <div className="text-2xl font-bold text-cyan-300">{rpsScore.user}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
+                    <div className="text-xs text-slate-400">Robofriend</div>
+                    <div className="my-2 text-5xl">{rpsEmoji(rpsBot)}</div>
+                    <div className="text-2xl font-bold text-fuchsia-300">{rpsScore.bot}</div>
+                  </div>
+                </div>
+                <div className="mb-4 rounded-xl border border-white/10 bg-slate-950/60 py-3 text-center text-sm text-slate-200">{rpsMsg}</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["rock", "paper", "scissors"] as RPSChoice[]).map((c) => (
+                    <button key={c} onClick={() => playRPS(c)}
+                      className="rounded-xl border border-white/10 bg-white/5 py-3 text-3xl hover:border-cyan-400/40 hover:bg-cyan-400/10 transition">
+                      {rpsEmoji(c)}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => { setRpsScore({ user: 0, bot: 0 }); setRpsUser(null); setRpsBot(null); setRpsMsg("Make your move!"); }}
+                  className="mt-4 w-full rounded-xl border border-white/10 bg-white/5 py-2 text-xs text-slate-300 hover:border-rose-400/40 hover:text-rose-200 transition">
+                  Reset scores
+                </button>
+              </div>
+            )}
+
+            {panel === "achievements" && (
+              <div>
+                <h2 className="mb-1 text-xl font-bold bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">Achievements</h2>
+                <p className="mb-4 text-xs text-slate-400">{unlocked.length}/{ACHIEVEMENTS.length} unlocked</p>
+                <ul className="space-y-2">
+                  {ACHIEVEMENTS.map((a) => {
+                    const got = unlocked.includes(a.id);
+                    return (
+                      <li key={a.id} className={`flex items-center gap-3 rounded-xl border p-3 transition ${got ? "border-amber-400/40 bg-amber-400/10" : "border-white/10 bg-white/5 opacity-60"}`}>
+                        <div className={`grid h-10 w-10 place-items-center rounded-lg text-xl ${got ? "bg-amber-400/20" : "bg-white/5 grayscale"}`}>{a.icon}</div>
+                        <div className="flex-1">
+                          <div className={`text-sm font-semibold ${got ? "text-amber-200" : "text-slate-300"}`}>{a.label}</div>
+                          <div className="text-xs text-slate-400">{a.desc}</div>
+                        </div>
+                        {got && <Award className="h-4 w-4 text-amber-300" />}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Achievement toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 rounded-2xl border border-amber-400/40 bg-slate-900/95 px-4 py-3 shadow-2xl shadow-amber-500/20 animate-in slide-in-from-right duration-300">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-400/20 text-xl">{toast.icon}</div>
+          <div>
+            <div className="text-xs text-amber-300">Achievement unlocked!</div>
+            <div className="text-sm font-semibold text-slate-100">{toast.label}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
