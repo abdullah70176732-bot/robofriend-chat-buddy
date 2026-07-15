@@ -423,6 +423,14 @@ function Index() {
   }, [dark]);
 
   useEffect(() => {
+    if (themeId === "default") {
+      document.documentElement.removeAttribute("data-theme");
+    } else {
+      document.documentElement.setAttribute("data-theme", themeId);
+    }
+  }, [themeId]);
+
+  useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, typing]);
 
