@@ -388,8 +388,97 @@ function Index() {
   const clearChat = () => {
     playClick();
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
-    setMessages([welcomeMsg]);
+    setMessages([{ id: "welcome", role: "bot", text: persona.greeting }]);
     inputRef.current?.focus();
+  };
+
+  const selectPersona = (id: string) => {
+    playClick();
+    setPersonaId(id);
+    setPersonaOpen(false);
+    try { localStorage.setItem(PERSONA_STORAGE, id); } catch { /* ignore */ }
+  };
+
+  const buildTranscript = () => {
+    const stamp = new Date().toLocaleString();
+    const lines = [
+      `Nova Chat Transcript`,
+      `Persona: ${persona.name}`,
+      `Exported: ${stamp}`,
+      `${"-".repeat(40)}`,
+      "",
+    ];
+    for (const m of messages) {
+      const who = m.role === "user" ? "You" : "Nova";
+      lines.push(`${who}:`);
+      lines.push(m.text);
+      lines.push("");
+    }
+    return lines.join("\n");
+  };
+
+  const exportTxt = () => {
+    playClick();
+    setExportOpen(false);
+    const blob = new Blob([buildTranscript()], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `nova-chat-${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    playClick();
+    setExportOpen(false);
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const margin = 48;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const maxWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("Nova Chat Transcript", margin, y);
+    y += 22;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(`Persona: ${persona.name}  •  Exported: ${new Date().toLocaleString()}`, margin, y);
+    y += 20;
+    doc.setDrawColor(220);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 18;
+    doc.setTextColor(30);
+
+    const writeBlock = (label: string, body: string, labelColor: [number, number, number]) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(...labelColor);
+      if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+      doc.text(label, margin, y);
+      y += 14;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(30);
+      const lines = doc.splitTextToSize(body, maxWidth);
+      for (const line of lines) {
+        if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += 15;
+      }
+      y += 8;
+    };
+
+    for (const m of messages) {
+      if (m.role === "user") writeBlock("You", m.text, [37, 99, 235]);
+      else writeBlock("Nova", m.text, [22, 163, 74]);
+    }
+    doc.save(`nova-chat-${Date.now()}.pdf`);
   };
 
   const toggleVoice = () => {
