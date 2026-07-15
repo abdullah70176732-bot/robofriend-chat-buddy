@@ -1029,6 +1029,14 @@ function Index() {
       <main className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-border bg-card/60 px-4 py-3 backdrop-blur-sm md:px-10">
           <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => { playClick(); setHistoryOpen(true); }}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground transition hover:bg-accent md:hidden"
+              aria-label="Open chat history"
+              title="Chat history"
+            >
+              <History className="h-4 w-4" />
+            </button>
             <div className="flex items-center gap-2 md:hidden text-primary">
               <RobotAvatar size={28} winking={wink} floating={false} />
               <span className="font-semibold text-foreground">Nova</span>
