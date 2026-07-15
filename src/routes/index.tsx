@@ -473,29 +473,63 @@ function Index() {
       if (savedTheme && THEMES.some((t) => t.id === savedTheme)) {
         setThemeId(savedTheme);
       }
-      const savedMsgs = localStorage.getItem(MESSAGES_STORAGE);
-      if (savedMsgs) {
-        const parsed = JSON.parse(savedMsgs);
-        if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed);
+      const savedConvs = localStorage.getItem(CONVERSATIONS_STORAGE);
+      if (savedConvs) {
+        const parsed = JSON.parse(savedConvs);
+        if (parsed && Array.isArray(parsed.conversations) && parsed.conversations.length > 0) {
+          setConversations(parsed.conversations);
+          const nextActive =
+            parsed.activeId && parsed.conversations.some((c: Conversation) => c.id === parsed.activeId)
+              ? parsed.activeId
+              : parsed.conversations[0].id;
+          setActiveId(nextActive);
+        }
+      } else {
+        // Migrate legacy single-chat storage into a first conversation
+        const savedMsgs = localStorage.getItem(MESSAGES_STORAGE);
+        if (savedMsgs) {
+          const parsed = JSON.parse(savedMsgs);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const firstUser = parsed.find((m: Message) => m.role === "user");
+            const title = firstUser?.text ? String(firstUser.text).slice(0, 40) : "Chat";
+            const conv: Conversation = {
+              id: crypto.randomUUID(),
+              title,
+              messages: parsed,
+              updatedAt: Date.now(),
+            };
+            setConversations([conv]);
+            setActiveId(conv.id);
+          }
+          localStorage.removeItem(MESSAGES_STORAGE);
+        }
       }
     } catch { /* ignore */ }
   }, []);
 
-  // Persist chat history whenever it changes (after mount to avoid overwriting on load)
+  // Persist all conversations whenever they change (after mount to avoid overwriting on load)
   useEffect(() => {
     if (!mounted) return;
-    try { localStorage.setItem(MESSAGES_STORAGE, JSON.stringify(messages)); } catch { /* ignore */ }
-  }, [messages, mounted]);
+    try {
+      localStorage.setItem(
+        CONVERSATIONS_STORAGE,
+        JSON.stringify({ conversations, activeId }),
+      );
+    } catch { /* ignore */ }
+  }, [conversations, activeId, mounted]);
 
-  // Keep the welcome message in sync with the active persona (only when chat is fresh)
+  // Keep the welcome message in sync with the active persona (only when active chat is fresh)
   useEffect(() => {
-    setMessages((ms) => {
-      if (ms.length === 1 && ms[0].id === "welcome") {
-        return [{ id: "welcome", role: "bot", text: persona.greeting }];
-      }
-      return ms;
-    });
-  }, [personaId]);
+    setConversations((cs) =>
+      cs.map((c) => {
+        if (c.id !== activeId) return c;
+        if (c.messages.length === 1 && c.messages[0].id === "welcome") {
+          return { ...c, messages: [{ id: "welcome", role: "bot", text: persona.greeting }] };
+        }
+        return c;
+      }),
+    );
+  }, [personaId, activeId]);
 
   const speak = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
