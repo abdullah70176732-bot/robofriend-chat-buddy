@@ -923,6 +923,77 @@ function Index() {
     );
   };
 
+  const sortedConvs = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+  const chatList = (
+    <div className="flex h-full flex-col">
+      <button
+        onClick={newChat}
+        className="mb-3 inline-flex items-center justify-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/25"
+      >
+        <Plus className="h-4 w-4" />
+        New chat
+      </button>
+      <div className="flex-1 space-y-1 overflow-y-auto pr-1">
+        {sortedConvs.map((c) => {
+          const isActive = c.id === activeId;
+          const isRenaming = renamingId === c.id;
+          return (
+            <div
+              key={c.id}
+              className={`group flex items-center gap-1 rounded-xl px-2 py-1.5 text-sm transition ${
+                isActive ? "bg-white/25 text-white" : "text-white/85 hover:bg-white/10"
+              }`}
+            >
+              {isRenaming ? (
+                <input
+                  autoFocus
+                  value={renameDraft}
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename();
+                    if (e.key === "Escape") { setRenamingId(null); setRenameDraft(""); }
+                  }}
+                  className="flex-1 rounded-md bg-white/20 px-2 py-1 text-xs text-white outline-none placeholder:text-white/60"
+                />
+              ) : (
+                <button
+                  onClick={() => selectConv(c.id)}
+                  className="flex-1 truncate text-left text-xs"
+                  title={c.title}
+                >
+                  <MessageCircle className="mr-1.5 inline h-3 w-3 opacity-70" />
+                  {c.title}
+                </button>
+              )}
+              {!isRenaming && (
+                <>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); startRename(c.id, c.title); }}
+                    aria-label="Rename chat"
+                    className="rounded p-1 text-white/60 opacity-0 transition hover:bg-white/15 hover:text-white group-hover:opacity-100"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteConv(c.id); }}
+                    aria-label="Delete chat"
+                    className="rounded p-1 text-white/60 opacity-0 transition hover:bg-white/15 hover:text-white group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {sortedConvs.length === 0 && (
+          <p className="px-2 py-3 text-xs text-white/60">No chats yet.</p>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex min-h-screen w-full" style={{ background: "var(--gradient-bg)" }}>
       {/* Sidebar */}
