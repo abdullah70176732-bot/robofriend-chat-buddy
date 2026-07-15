@@ -1605,11 +1605,30 @@ function Index() {
               >
                 <ImagePlus className="h-4 w-4" />
               </button>
+              <button
+                type="button"
+                onClick={() => { playClick(); setImageMode((v) => !v); }}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border transition ${
+                  imageMode
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background text-foreground hover:bg-accent"
+                }`}
+                aria-label="Toggle image generation mode"
+                title={imageMode ? "Image generation: ON" : "Generate an image from your prompt"}
+              >
+                <Wand2 className="h-4 w-4" />
+              </button>
               <input
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={pendingImage ? "Ask about this image…" : "Type a message…"}
+                placeholder={
+                  imageMode
+                    ? "Describe an image to generate…"
+                    : pendingImage
+                    ? "Ask about this image…"
+                    : "Type a message…"
+                }
                 className="flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
               />
               {voiceSupported && (
