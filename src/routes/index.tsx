@@ -456,6 +456,15 @@ function NexusApp() {
     const memoryContext = buildMemoryContext(updatedMemory, text);
 
     setTyping(true);
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    const botId = crypto.randomUUID();
+    // Insert an empty bot bubble we'll stream tokens into.
+    updateActive((s) => ({
+      ...s,
+      messages: [...s.messages, { id: botId, role: "bot", text: "", ts: Date.now() }],
+    }));
     try {
       const payload = {
         language: langLabel,
@@ -479,18 +488,57 @@ function NexusApp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: ac.signal,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Request failed");
-      const reply = data.text || "Beep boop 🤖 (empty reply)";
-      const botMsg: Msg = { id: crypto.randomUUID(), role: "bot", text: reply, sentiment: classifySentiment(reply), ts: Date.now() };
-      updateActive((s) => ({ ...s, messages: [...s.messages, botMsg] }));
+      if (!res.ok || !res.body) {
+        let errMsg = "Request failed";
+        try { const j = await res.json(); errMsg = j?.error || errMsg; } catch { /* stream error body */ }
+        throw new Error(errMsg);
+      }
+      // Stream text chunks into the pending bot message.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let acc = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        acc += decoder.decode(value, { stream: true });
+        updateActive((s) => ({
+          ...s,
+          messages: s.messages.map((m) => (m.id === botId ? { ...m, text: acc } : m)),
+        }));
+      }
+      const reply = acc || "Beep boop 🤖 (empty reply)";
+      updateActive((s) => ({
+        ...s,
+        messages: s.messages.map((m) =>
+          m.id === botId ? { ...m, text: reply, sentiment: classifySentiment(reply) } : m,
+        ),
+      }));
       speak(reply);
     } catch (err: any) {
-      pushBot(`⚠️ Circuits fizzled: ${err?.message || "unknown error"}. Try again in a moment 🤖`);
+      if (err?.name === "AbortError") {
+        updateActive((s) => ({
+          ...s,
+          messages: s.messages.map((m) =>
+            m.id === botId ? { ...m, text: (m.text || "") + "\n\n_(stopped)_" } : m,
+          ),
+        }));
+      } else {
+        const msg = `⚠️ Circuits fizzled: ${err?.message || "unknown error"}. Try again in a moment 🤖`;
+        updateActive((s) => ({
+          ...s,
+          messages: s.messages.map((m) => (m.id === botId ? { ...m, text: msg } : m)),
+        }));
+      }
     } finally {
       setTyping(false);
+      if (abortRef.current === ac) abortRef.current = null;
     }
+  }
+
+  function stopStreaming() {
+    abortRef.current?.abort();
   }
 
   function handleImagePick(file: File) {
