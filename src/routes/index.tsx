@@ -5,7 +5,7 @@ import {
   Send, Mic, MicOff, Volume2, VolumeX, Trash2, Battery, BatteryCharging,
   Sparkles, Zap, Rocket, Bot, Smile, Frown, Coffee, Flame, CheckCircle2, Circle, Menu, X,
   Palette, Globe, Plus, MessageSquare, Wand2, Gamepad2, Trophy, Award,
-  BarChart3, ImagePlus, Brain,
+  BarChart3, ImagePlus, Brain, Square,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: NexusApp });
