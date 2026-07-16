@@ -864,10 +864,17 @@ function NexusApp() {
                 placeholder="Talk to Nexus..."
                 className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
               />
-              <button onClick={() => send()} disabled={!input.trim() && !pendingImage}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/30 transition hover:brightness-110 disabled:opacity-40">
-                <Send className="h-4 w-4" />
-              </button>
+              {typing ? (
+                <button onClick={stopStreaming} title="Stop generating"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-red-500/90 text-white shadow-lg shadow-red-500/30 transition hover:brightness-110">
+                  <Square className="h-4 w-4" />
+                </button>
+              ) : (
+                <button onClick={() => send()} disabled={!input.trim() && !pendingImage}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/30 transition hover:brightness-110 disabled:opacity-40">
+                  <Send className="h-4 w-4" />
+                </button>
+              )}
             </div>
             <p className="mx-auto mt-2 max-w-3xl text-center text-[10px] text-slate-500">
               <Rocket className="mr-1 inline h-3 w-3" /> Nexus is a playful companion — not a doctor, therapist, or oracle.
