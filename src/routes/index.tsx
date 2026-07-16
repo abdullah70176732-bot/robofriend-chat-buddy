@@ -5,7 +5,7 @@ import {
   Send, Mic, MicOff, Volume2, VolumeX, Trash2, Battery, BatteryCharging,
   Sparkles, Zap, Rocket, Bot, Smile, Frown, Coffee, Flame, CheckCircle2, Circle, Menu, X,
   Palette, Globe, Plus, MessageSquare, Wand2, Gamepad2, Trophy, Award,
-  BarChart3, ImagePlus, Brain,
+  BarChart3, ImagePlus, Brain, Square,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: NexusApp });
@@ -264,6 +264,7 @@ function NexusApp() {
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const [voiceOn, setVoiceOn] = useState(false);
   const [listening, setListening] = useState(false);
   const [battery, setBattery] = useState(100);
@@ -455,6 +456,15 @@ function NexusApp() {
     const memoryContext = buildMemoryContext(updatedMemory, text);
 
     setTyping(true);
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    const botId = crypto.randomUUID();
+    // Insert an empty bot bubble we'll stream tokens into.
+    updateActive((s) => ({
+      ...s,
+      messages: [...s.messages, { id: botId, role: "bot", text: "", ts: Date.now() }],
+    }));
     try {
       const payload = {
         language: langLabel,
@@ -478,18 +488,57 @@ function NexusApp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: ac.signal,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Request failed");
-      const reply = data.text || "Beep boop 🤖 (empty reply)";
-      const botMsg: Msg = { id: crypto.randomUUID(), role: "bot", text: reply, sentiment: classifySentiment(reply), ts: Date.now() };
-      updateActive((s) => ({ ...s, messages: [...s.messages, botMsg] }));
+      if (!res.ok || !res.body) {
+        let errMsg = "Request failed";
+        try { const j = await res.json(); errMsg = j?.error || errMsg; } catch { /* stream error body */ }
+        throw new Error(errMsg);
+      }
+      // Stream text chunks into the pending bot message.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let acc = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        acc += decoder.decode(value, { stream: true });
+        updateActive((s) => ({
+          ...s,
+          messages: s.messages.map((m) => (m.id === botId ? { ...m, text: acc } : m)),
+        }));
+      }
+      const reply = acc || "Beep boop 🤖 (empty reply)";
+      updateActive((s) => ({
+        ...s,
+        messages: s.messages.map((m) =>
+          m.id === botId ? { ...m, text: reply, sentiment: classifySentiment(reply) } : m,
+        ),
+      }));
       speak(reply);
     } catch (err: any) {
-      pushBot(`⚠️ Circuits fizzled: ${err?.message || "unknown error"}. Try again in a moment 🤖`);
+      if (err?.name === "AbortError") {
+        updateActive((s) => ({
+          ...s,
+          messages: s.messages.map((m) =>
+            m.id === botId ? { ...m, text: (m.text || "") + "\n\n_(stopped)_" } : m,
+          ),
+        }));
+      } else {
+        const msg = `⚠️ Circuits fizzled: ${err?.message || "unknown error"}. Try again in a moment 🤖`;
+        updateActive((s) => ({
+          ...s,
+          messages: s.messages.map((m) => (m.id === botId ? { ...m, text: msg } : m)),
+        }));
+      }
     } finally {
       setTyping(false);
+      if (abortRef.current === ac) abortRef.current = null;
     }
+  }
+
+  function stopStreaming() {
+    abortRef.current?.abort();
   }
 
   function handleImagePick(file: File) {
@@ -815,10 +864,17 @@ function NexusApp() {
                 placeholder="Talk to Nexus..."
                 className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
               />
-              <button onClick={() => send()} disabled={!input.trim() && !pendingImage}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/30 transition hover:brightness-110 disabled:opacity-40">
-                <Send className="h-4 w-4" />
-              </button>
+              {typing ? (
+                <button onClick={stopStreaming} title="Stop generating"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-red-500/90 text-white shadow-lg shadow-red-500/30 transition hover:brightness-110">
+                  <Square className="h-4 w-4" />
+                </button>
+              ) : (
+                <button onClick={() => send()} disabled={!input.trim() && !pendingImage}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/30 transition hover:brightness-110 disabled:opacity-40">
+                  <Send className="h-4 w-4" />
+                </button>
+              )}
             </div>
             <p className="mx-auto mt-2 max-w-3xl text-center text-[10px] text-slate-500">
               <Rocket className="mr-1 inline h-3 w-3" /> Nexus is a playful companion — not a doctor, therapist, or oracle.

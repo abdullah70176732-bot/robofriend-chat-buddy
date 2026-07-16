@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { generateText } from "ai";
+import { streamText } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
 
@@ -119,17 +119,21 @@ export const Route = createFileRoute("/api/chat")({
           // Abort runaway upstream calls to protect worker CPU budget.
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 45_000);
-          try {
-          const result = await generateText({
+          const result = streamText({
             model,
-              system,
-              messages: messages.filter((m) => m.role !== "system") as any,
-              abortSignal: controller.signal,
+            system,
+            messages: messages.filter((m) => m.role !== "system") as any,
+            abortSignal: controller.signal,
+            onFinish: () => clearTimeout(timeout),
+            onError: () => clearTimeout(timeout),
           });
-          return Response.json({ text: result.text });
-          } finally {
-            clearTimeout(timeout);
-          }
+          return result.toTextStreamResponse({
+            headers: {
+              "content-type": "text/plain; charset=utf-8",
+              "cache-control": "no-store",
+              "x-accel-buffering": "no",
+            },
+          });
         } catch (err: unknown) {
           const e = err as { statusCode?: number; status?: number; message?: string; name?: string };
           if (e?.name === "AbortError") {
