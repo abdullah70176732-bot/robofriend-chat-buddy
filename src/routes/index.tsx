@@ -264,6 +264,7 @@ function NexusApp() {
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const [voiceOn, setVoiceOn] = useState(false);
   const [listening, setListening] = useState(false);
   const [battery, setBattery] = useState(100);
