@@ -122,7 +122,8 @@ export const Route = createFileRoute("/api/chat")({
           try {
           const result = await generateText({
             model,
-              messages: [{ role: "system", content: system }, ...(messages as any)],
+              system,
+              messages: messages.filter((m) => m.role !== "system") as any,
               abortSignal: controller.signal,
           });
           return Response.json({ text: result.text });
